@@ -25,7 +25,7 @@ services:
     staticPublishPath: ./dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://mld-6knq.onrender.com/api
+        value: https://mld-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*
