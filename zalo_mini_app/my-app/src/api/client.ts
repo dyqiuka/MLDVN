@@ -1,4 +1,4 @@
-import { getAccessToken, getUserInfo } from 'zmp-sdk';
+import { authorize, getAccessToken, getUserInfo } from 'zmp-sdk';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://mld-api.onrender.com/api').replace(/\/$/, '');
 const SESSION_KEY = 'mld_session_token';
@@ -14,10 +14,11 @@ const responseJson = async (res: Response) => {
 };
 
 export const apiClient = {
-  async loginWithZalo() {
+  async loginWithZalo(requestProfilePermission = false) {
     try {
+      if (requestProfilePermission) await authorize({ scopes: ['scope.userInfo'] });
       const accessToken = await getAccessToken();
-      const profile = await getUserInfo({ autoRequestPermission: true, avatarType: 'large' }).catch(() => null);
+      const profile = await getUserInfo({ autoRequestPermission: requestProfilePermission, avatarType: 'large' }).catch(() => null);
       const res = await fetch(`${API_BASE_URL}/auth/zalo`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken, userInfo: profile?.userInfo }),
@@ -26,8 +27,8 @@ export const apiClient = {
       if (data.token) localStorage.setItem(SESSION_KEY, data.token);
       return data;
     } catch (error) {
-      console.info('[AUTH] Zalo login is only available inside Zalo Mini App', error);
-      return null;
+      console.error('[AUTH] Zalo login failed', error);
+      return { error: error instanceof Error ? error.message : 'Không thể kết nối tài khoản Zalo' };
     }
   },
 

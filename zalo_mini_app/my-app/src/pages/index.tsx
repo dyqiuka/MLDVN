@@ -71,6 +71,8 @@ function MasterHomePage() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [memberSummary, setMemberSummary] = useState({ upcomingBookings: 0, remainingTreatmentSessions: 0, activeCourses: 0 });
   const [treatmentPlans, setTreatmentPlans] = useState<any[]>([]);
+  const [zaloAuthState, setZaloAuthState] = useState<'checking' | 'required' | 'connected' | 'web'>('checking');
+  const [zaloAuthError, setZaloAuthError] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Active Flow Modals (Starts at Group A Onboarding on initial launch)
@@ -99,8 +101,19 @@ function MasterHomePage() {
   // Fetch real data from Backend on mount
   useEffect(() => {
     async function loadBackendData() {
-      const zaloSession = await apiClient.loginWithZalo();
-      if (zaloSession?.user) setUser((prev) => ({ ...prev, ...zaloSession.user }));
+      const isInsideZalo = /Zalo/i.test(navigator.userAgent) || Boolean((window as any).ZJSBridge);
+      if (isInsideZalo) {
+        const zaloSession = await apiClient.loginWithZalo(false);
+        if (zaloSession?.user) {
+          setUser((prev) => ({ ...prev, ...zaloSession.user }));
+          setZaloAuthState(zaloSession.user.name === 'Khách hàng Zalo' ? 'required' : 'connected');
+        } else {
+          setZaloAuthError(zaloSession?.error || 'Không thể xác thực với Zalo.');
+          setZaloAuthState('required');
+        }
+      } else {
+        setZaloAuthState('web');
+      }
       const [srvData, docData, brData, crsData, recData, membData, bkData, notifData, treatmentData] = await Promise.all([
         apiClient.getServices(),
         apiClient.getDoctors(),
@@ -128,6 +141,22 @@ function MasterHomePage() {
 
     loadBackendData();
   }, []);
+
+  const connectZaloProfile = async () => {
+    setZaloAuthError('');
+    setZaloAuthState('checking');
+    const result = await apiClient.loginWithZalo(true);
+    if (result?.user) {
+      setUser((prev) => ({ ...prev, ...result.user }));
+      setZaloAuthState('connected');
+      const membership = await apiClient.getMembership();
+      if (membership?.user) setUser((prev) => ({ ...prev, ...membership.user }));
+      if (membership?.summary) setMemberSummary(membership.summary);
+      return;
+    }
+    setZaloAuthError(result?.error || 'Bạn chưa cấp quyền thông tin tài khoản Zalo.');
+    setZaloAuthState('required');
+  };
 
   const handleBookingSuccess = (newBooking: Booking) => {
     setBookingService(null);
@@ -173,6 +202,20 @@ function MasterHomePage() {
   return (
     <div className="min-h-screen bg-[#EDE7DE] flex justify-center items-start sm:items-center py-0 sm:py-4 text-stone-800 select-none">
       <div className="mini-app-shell w-full max-w-[390px] sm:h-[844px] sm:max-h-[96vh] bg-[#FAF6F0] sm:rounded-[36px] shadow-2xl relative overflow-hidden flex flex-col border sm:border-[#DCCFC0]">
+        {(zaloAuthState === 'required' || zaloAuthState === 'checking') && (
+          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[#FAF6F0] p-6">
+            <div className="w-full rounded-[8px] border border-[#EADECF] bg-white p-5 text-center shadow-lg">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F5EBE1] text-xl font-black text-[#98501B]">Z</div>
+              <h1 className="mt-4 text-lg font-bold text-[#40352F]">Kết nối tài khoản Zalo</h1>
+              <p className="mt-2 text-xs leading-relaxed text-[#75685F]">Cho phép MLD Việt Nam sử dụng tên và ảnh đại diện để tạo hồ sơ riêng cho bạn.</p>
+              {zaloAuthError && <p className="mt-3 rounded-[8px] bg-red-50 p-2.5 text-left text-[11px] text-red-700">{zaloAuthError}</p>}
+              <button disabled={zaloAuthState === 'checking'} onClick={connectZaloProfile} className="mt-5 h-11 w-full rounded-[8px] bg-[#98501B] text-sm font-bold text-white disabled:opacity-60">
+                {zaloAuthState === 'checking' ? 'Đang kết nối...' : 'Tiếp tục với Zalo'}
+              </button>
+              <p className="mt-3 text-[10px] text-[#8A7D74]">Ứng dụng không yêu cầu OTP và không lấy số điện thoại ở bước này.</p>
+            </div>
+          </div>
+        )}
         {/* Scrollable Body Content */}
         <div className="flex-1 overflow-y-auto pb-28 overscroll-contain">
         {/* TAB 1: TRANG CHỦ (FIGMA GROUP B HOME) */}
