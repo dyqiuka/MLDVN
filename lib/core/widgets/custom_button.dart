@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 
 enum ButtonType { primary, outline, text, icon }
 
@@ -28,8 +29,8 @@ class CustomButton extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.width,
-    this.height = 50,
-    this.borderRadius = 12,
+    this.height = 46,
+    this.borderRadius = 10,
     this.padding,
   });
 
@@ -41,10 +42,10 @@ class CustomButton extends StatelessWidget {
     Widget content;
     if (isLoading) {
       content = SizedBox(
-        height: 20,
-        width: 20,
+        height: 18,
+        width: 18,
         child: CircularProgressIndicator(
-          strokeWidth: 2.5,
+          strokeWidth: 2,
           valueColor: AlwaysStoppedAnimation<Color>(
             type == ButtonType.primary ? Colors.white : AppColors.primary,
           ),
@@ -53,7 +54,7 @@ class CustomButton extends StatelessWidget {
     } else {
       final children = <Widget>[];
       if (icon != null) {
-        children.add(Icon(icon, size: 20));
+        children.add(Icon(icon, size: 18));
       }
       if (icon != null && text != null) {
         children.add(const SizedBox(width: 8));
@@ -62,10 +63,7 @@ class CustomButton extends StatelessWidget {
         children.add(
           Text(
             text!,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
+            style: AppTypography.buttonText.copyWith(
               color: _getTextColor(context, effectiveDisabled, isDark),
             ),
           ),
@@ -86,14 +84,14 @@ class CustomButton extends StatelessWidget {
           onPressed: effectiveDisabled ? null : onPressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: backgroundColor ?? AppColors.primary,
-            disabledBackgroundColor: isDark ? const Color(0xFF1E2D4A) : const Color(0xFFE2E8F0),
+            disabledBackgroundColor: isDark ? const Color(0xFF333333) : const Color(0xFFE5DDD5),
             foregroundColor: textColor ?? Colors.white,
             elevation: 0,
             shadowColor: Colors.transparent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(borderRadius),
             ),
-            padding: padding ?? const EdgeInsets.symmetric(horizontal: 20),
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 18),
           ),
           child: content,
         );
@@ -103,16 +101,17 @@ class CustomButton extends StatelessWidget {
         button = OutlinedButton(
           onPressed: effectiveDisabled ? null : onPressed,
           style: OutlinedButton.styleFrom(
+            foregroundColor: textColor ?? AppColors.primary,
             side: BorderSide(
               color: effectiveDisabled
-                  ? (isDark ? const Color(0xFF263554) : const Color(0xFFCBD5E1))
+                  ? (isDark ? const Color(0xFF424242) : AppColors.borderLight)
                   : (backgroundColor ?? AppColors.primary),
-              width: 1.5,
+              width: 1,
             ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(borderRadius),
             ),
-            padding: padding ?? const EdgeInsets.symmetric(horizontal: 20),
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 18),
           ),
           child: content,
         );
@@ -122,7 +121,8 @@ class CustomButton extends StatelessWidget {
         button = TextButton(
           onPressed: effectiveDisabled ? null : onPressed,
           style: TextButton.styleFrom(
-            padding: padding ?? const EdgeInsets.symmetric(horizontal: 16),
+            foregroundColor: textColor ?? AppColors.primary,
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(borderRadius),
             ),
@@ -174,7 +174,7 @@ class CustomButton extends StatelessWidget {
   Color _getTextColor(BuildContext context, bool isDisabled, bool isDark) {
     if (textColor != null) return textColor!;
     if (isDisabled) {
-      return isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+      return isDark ? const Color(0xFF707070) : AppColors.textSecondary;
     }
     switch (type) {
       case ButtonType.primary:

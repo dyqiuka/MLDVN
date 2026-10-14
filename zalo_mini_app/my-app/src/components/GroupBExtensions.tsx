@@ -11,6 +11,7 @@ import {
   PhoneIcon,
   LocationIcon,
   MapIcon,
+  SearchIcon,
 } from '@/components/Icons';
 
 export const BranchDirectoryModal: React.FC<{
@@ -30,7 +31,7 @@ export const BranchDirectoryModal: React.FC<{
       <div className="flex gap-2"><button className="flex-1 h-10 rounded-[8px] bg-white border border-[#A65317] text-[#A65317] text-[10px] font-bold">Gần tôi</button><button className="px-4 h-10 rounded-[8px] bg-[#A65317] text-white text-[10px]">Danh sách</button><button className="px-4 h-10 rounded-[8px] bg-white border border-[#DED2C5] text-[10px]">Bản đồ</button></div>
       <label className="block text-[10px] text-[#6F625B]">Dịch vụ tại cơ sở<span className="h-10 mt-1 px-3 rounded-[8px] bg-white border border-[#DED2C5] flex items-center justify-between text-[#40352F]">Tất cả dịch vụ <span>⌄</span></span></label>
       <div className="p-3 rounded-[8px] bg-[#F3E2CE] text-[9px]">Dữ liệu minh họa · {branches.length} cơ sở hữu cấu. Không sử dụng vị trí hoặc khoảng cách thực tế.</div>
-      {branches.map((branch) => <button key={branch.id} onClick={() => onSelectBranch(branch)} className="w-full text-left rounded-[10px] overflow-hidden bg-white border border-[#DED2C5]"><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&auto=format&fit=crop&q=80" alt={branch.name} className="w-full h-[180px] object-cover" /><div className="p-3"><h3 className="text-[12px] font-bold">{branch.name}</h3><p className="text-[10px] text-[#7A685D] mt-1">{branch.address}</p></div></button>)}
+      {branches.map((branch) => <button key={branch.id} onClick={() => onSelectBranch(branch)} className="w-full rounded-[10px] border border-[#DED2C5] bg-white p-2 text-left"><div className="px-1 py-1.5"><h3 className="text-[12px] font-bold">{branch.name}</h3><p className="mt-0.5 text-[9px] font-semibold text-[#A65317]">Có thể đặt lịch tại chi nhánh</p></div><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&auto=format&fit=crop&q=80" alt={branch.name} className="mt-1 h-[180px] w-full rounded-[8px] object-cover" /><p className="px-1 pb-1 pt-2 text-[10px] text-[#7A685D]">{branch.address}</p></button>)}
     </div>
   </div>
 );
@@ -39,18 +40,35 @@ export const SpecialistDirectoryModal: React.FC<{
   doctors: Doctor[];
   onClose: () => void;
   onSelectDoctor: (doctor: Doctor) => void;
-}> = ({ doctors, onClose, onSelectDoctor }) => (
-  <div className="absolute inset-0 z-50 bg-[#FAF6F0] flex flex-col overflow-hidden text-[#40352F]">
-    <div className="px-4 pt-4 pb-3"><button onClick={onClose} className="w-9 h-9 rounded-[8px] bg-white border border-[#DED2C5] flex items-center justify-center mb-4"><ArrowLeftIcon size={18} /></button><h1 className="text-[21px] font-bold text-[#6F452C]">Đội ngũ chuyên viên</h1><p className="text-[11px] text-[#7A685D] mt-1">Đồng hành cùng bạn trong hành trình chăm sóc sức khỏe.</p></div>
-    <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-3">
-      <div className="flex gap-2"><span className="w-10 h-10 rounded-[8px] bg-white border border-[#DED2C5] flex items-center justify-center"><LocationIcon size={17} color="#A65317" /></span><div className="h-10 flex-1 rounded-[8px] bg-white border border-[#DED2C5] px-3 flex items-center text-[10px] text-[#8A7D74]">Tìm tên hoặc chuyên môn...</div></div>
-      <div className="grid grid-cols-2 gap-2">{['Chi nhánh', 'Chuyên môn', 'Dịch vụ', 'Giờ minh họa'].map((label) => <label key={label} className="text-[9px] text-[#6F625B]">{label}<span className="h-10 mt-1 px-3 rounded-[8px] bg-white border border-[#DED2C5] flex items-center justify-between text-[10px] text-[#40352F]">Tất cả <span>⌄</span></span></label>)}</div>
-      <label className="block text-[9px] text-[#6F625B]">Sắp xếp<span className="h-10 mt-1 px-3 rounded-[8px] bg-white border border-[#DED2C5] flex items-center justify-between text-[10px] text-[#40352F]">Theo tên chuyên viên <span>⌄</span></span></label>
-      <div className="p-3 rounded-[8px] bg-[#F3E2CE] text-[9px]">{doctors.length} hồ sơ minh họa · Không phải nhân sự hoặc lịch trống thực tế.</div>
-      {doctors.map((doctor) => <button key={doctor.id} onClick={() => onSelectDoctor(doctor)} className="w-full p-3 rounded-[10px] bg-white border border-[#DED2C5] flex gap-3 text-left"><img src={doctor.avatar} alt={doctor.name} className="w-20 h-20 rounded-[8px] object-cover" /><div><h3 className="text-[12px] font-bold">{doctor.name}</h3><p className="text-[10px] text-[#7A685D] mt-1">{doctor.title}</p><span className="text-[9px] text-[#A65317] mt-2 block">Hồ sơ minh họa</span></div></button>)}
+}> = ({ doctors, onClose, onSelectDoctor }) => {
+  const [query, setQuery] = React.useState('');
+  const [branch, setBranch] = React.useState('all');
+  const [specialty, setSpecialty] = React.useState('all');
+  const [sort, setSort] = React.useState('name');
+  const branches = Array.from(new Set(doctors.map((doctor) => doctor.hospital).filter(Boolean)));
+  const specialties = Array.from(new Set(doctors.map((doctor) => doctor.specialty).filter(Boolean)));
+  const results = doctors
+    .filter((doctor) => {
+      const keyword = query.trim().toLocaleLowerCase('vi');
+      const matchesQuery = !keyword || `${doctor.name} ${doctor.title} ${doctor.specialty}`.toLocaleLowerCase('vi').includes(keyword);
+      return matchesQuery && (branch === 'all' || doctor.hospital === branch) && (specialty === 'all' || doctor.specialty === specialty);
+    })
+    .sort((a, b) => sort === 'rating' ? b.rating - a.rating : a.name.localeCompare(b.name, 'vi'));
+
+  return <div className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-[#FAF6F0] text-[#40352F]">
+    <div className="shrink-0 px-4 pb-3 pt-4"><button onClick={onClose} aria-label="Quay lại" className="mb-3 flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#DED2C5] bg-white"><ArrowLeftIcon size={18} /></button><h1 className="text-[21px] font-bold text-[#6F452C]">Đội ngũ chuyên viên</h1><p className="mt-1 text-[11px] text-[#7A685D]">Đồng hành cùng bạn trong hành trình chăm sóc sức khỏe.</p></div>
+    <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-24">
+      <label className="flex h-10 items-center gap-2 rounded-[8px] border border-[#DED2C5] bg-white px-3"><SearchIcon size={16} color="#A65317" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên hoặc chuyên môn..." className="min-w-0 flex-1 bg-transparent text-[10px] outline-none" /></label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-[9px] text-[#6F625B]">Chi nhánh<select value={branch} onChange={(event) => setBranch(event.target.value)} className="mt-1 h-10 w-full rounded-[8px] border border-[#DED2C5] bg-white px-2 text-[10px] text-[#40352F]"><option value="all">Tất cả</option>{branches.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label className="text-[9px] text-[#6F625B]">Chuyên môn<select value={specialty} onChange={(event) => setSpecialty(event.target.value)} className="mt-1 h-10 w-full rounded-[8px] border border-[#DED2C5] bg-white px-2 text-[10px] text-[#40352F]"><option value="all">Tất cả</option>{specialties.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+      </div>
+      <label className="block text-[9px] text-[#6F625B]">Sắp xếp<select value={sort} onChange={(event) => setSort(event.target.value)} className="mt-1 h-10 w-full rounded-[8px] border border-[#DED2C5] bg-white px-3 text-[10px] text-[#40352F]"><option value="name">Theo tên chuyên viên</option><option value="rating">Đánh giá cao nhất</option></select></label>
+      <div className="rounded-[8px] bg-[#F3E2CE] p-3 text-[9px]">{results.length} chuyên viên phù hợp</div>
+      {results.length === 0 ? <div className="rounded-[10px] border border-[#DED2C5] bg-white p-6 text-center text-[10px] text-[#7A685D]">Không tìm thấy chuyên viên phù hợp.</div> : results.map((doctor) => <button key={doctor.id} onClick={() => onSelectDoctor(doctor)} className="w-full rounded-[10px] border border-[#DED2C5] bg-white p-2 text-left"><div className="px-1 py-1.5"><h3 className="text-[12px] font-bold">{doctor.name}</h3><p className="mt-0.5 text-[9px] font-semibold text-[#A65317]">{doctor.title}</p></div><img src={doctor.avatar} alt={doctor.name} className="mt-1 h-[180px] w-full rounded-[8px] object-cover object-top" /><div className="px-1 pb-1 pt-2"><p className="text-[10px] text-[#7A685D]">{doctor.specialty}</p><span className="mt-1 block text-[9px] font-semibold text-[#A65317]">★ {doctor.rating} · {doctor.experienceYears} năm kinh nghiệm</span></div></button>)}
     </div>
-  </div>
-);
+  </div>;
+};
 
 // 1. SERVICE DETAIL MODAL (Matching Figma B03 - Dịch vụ đầy đủ)
 export const ServiceDetailModal: React.FC<{
@@ -326,11 +344,9 @@ export const BranchDetailModal: React.FC<{
 
   return (
     <div className="absolute inset-0 z-50 bg-[#FAF6F0] flex flex-col overflow-hidden animate-fade-in text-stone-800">
-        <div className="p-4 border-b border-[#EADECF] flex justify-between items-center bg-white">
+        <div className="p-4 border-b border-[#EADECF] flex items-center gap-3 bg-white">
+          <button onClick={onClose} aria-label="Quay lại" className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#DED2C5] bg-white"><ArrowLeftIcon size={18} color="#40352F" /></button>
           <h2 className="font-bold text-base text-[#40352F]">Thông tin cơ sở</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-200 transition">
-            <CloseIcon size={14} color="#40352F" />
-          </button>
         </div>
 
         <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs text-stone-800">
@@ -423,14 +439,9 @@ export const LocationDirectionsModal: React.FC<{
   return (
     <div className="absolute inset-0 z-50 bg-[#FAF6F0] flex flex-col overflow-hidden animate-fade-in text-stone-800">
         {/* Header */}
-        <div className="p-4 border-b border-[#EADECF] flex justify-between items-center bg-white">
-          <div className="flex items-center space-x-2">
-            <MapIcon size={16} color="#98501B" />
-            <h2 className="font-bold text-sm text-[#40352F]">Chỉ đường đến cơ sở</h2>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-200 transition">
-            <CloseIcon size={14} color="#40352F" />
-          </button>
+        <div className="p-4 border-b border-[#EADECF] flex items-center gap-3 bg-white">
+          <button onClick={onClose} aria-label="Quay lại" className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#DED2C5] bg-white"><ArrowLeftIcon size={18} color="#40352F" /></button>
+          <div className="flex items-center space-x-2"><MapIcon size={16} color="#98501B" /><h2 className="font-bold text-sm text-[#40352F]">Chỉ đường đến cơ sở</h2></div>
         </div>
 
         {/* Content */}

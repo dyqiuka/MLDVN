@@ -37,3 +37,23 @@
 .zaui-list-item {
   cursor: pointer;
 }
+
+/* The Figma mobile type scale is one step larger than the original prototype. */
+.mini-app-shell {
+  font-size: 17px;
+}
+
+.mini-app-shell .text-xs { font-size: 13px !important; }
+.mini-app-shell .text-sm { font-size: 15px !important; }
+.mini-app-shell .text-base { font-size: 17px !important; }
+.mini-app-shell .text-lg { font-size: 19px !important; }
+.mini-app-shell [class~="text-[8px]"] { font-size: 9px !important; }
+.mini-app-shell [class~="text-[9px]"] { font-size: 10px !important; }
+.mini-app-shell [class~="text-[10px]"] { font-size: 11px !important; }
+.mini-app-shell [class~="text-[11px]"] { font-size: 12px !important; }
+.mini-app-shell [class~="text-[12px]"] { font-size: 13px !important; }
+.mini-app-shell [class~="text-[13px]"] { font-size: 14px !important; }
+.mini-app-shell [class~="text-[15px]"] { font-size: 16px !important; }
+.mini-app-shell [class~="text-[16px]"] { font-size: 17px !important; }
+.mini-app-shell [class~="text-[20px]"] { font-size: 21px !important; }
+.mini-app-shell [class~="text-[21px]"] { font-size: 22px !important; }

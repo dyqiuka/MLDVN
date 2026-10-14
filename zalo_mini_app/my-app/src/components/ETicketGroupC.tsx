@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text, Modal } from 'zmp-ui';
 import { Booking } from '../../../../backend/src/data/database';
-import { CheckIcon, ArrowRightIcon, QrCodeIcon } from './Icons';
+import { CheckIcon, ArrowLeftIcon, ArrowRightIcon, QrCodeIcon } from './Icons';
 
 interface ETicketGroupCProps {
   booking: Booking | null;
@@ -18,14 +18,9 @@ export const ETicketGroupC: React.FC<ETicketGroupCProps> = ({
 
   return (
     <div className="absolute inset-0 z-50 bg-[#FAF6F0] flex flex-col overflow-hidden animate-fade-in text-stone-800">
-      <div className="bg-white border-b border-[#EADECF] px-4 py-3 flex items-center justify-between shadow-xs shrink-0">
+      <div className="bg-white border-b border-[#EADECF] px-4 py-3 flex items-center gap-3 shadow-xs shrink-0">
+        <button onClick={onClose} aria-label="Quay lại" className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#DED2C5] bg-white"><ArrowLeftIcon size={18} color="#40352F" /></button>
         <h2 className="text-sm font-bold text-[#40352F]">Vé hẹn điện tử (E-Ticket)</h2>
-        <button
-          onClick={onClose}
-          className="text-xs font-bold text-[#7A685D] hover:text-[#98501B] px-2 py-1"
-        >
-          Đóng
-        </button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20 text-center">
         {/* Success Icon */}

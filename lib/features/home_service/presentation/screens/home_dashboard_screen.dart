@@ -1,21 +1,21 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:prj/core/constants/app_constants.dart';
 import 'package:prj/core/theme/app_colors.dart';
-import 'package:prj/core/utils/formatters.dart';
+import 'package:prj/core/theme/app_typography.dart';
+import 'package:prj/core/widgets/branch_card.dart';
+import 'package:prj/core/widgets/category_chips.dart';
 import 'package:prj/core/widgets/course_card.dart';
-import 'package:prj/core/widgets/doctor_card.dart';
 import 'package:prj/core/widgets/service_card.dart';
+import 'package:prj/core/widgets/specialist_card.dart';
+import 'package:prj/core/widgets/welcome_banner_card.dart';
 import 'package:prj/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:prj/features/booking_payment/presentation/controllers/booking_controller.dart';
 import 'package:prj/features/booking_payment/presentation/screens/booking_flow_screen.dart';
-import 'package:prj/features/booking_payment/presentation/screens/appointment_detail_screen.dart';
-import 'package:prj/features/vocational_training/presentation/controllers/course_controller.dart';
-import 'package:prj/features/vocational_training/presentation/screens/course_detail_screen.dart';
 import 'package:prj/features/home_service/presentation/controllers/home_controller.dart';
 import 'package:prj/features/notifications/presentation/screens/notifications_screen.dart';
-import 'all_services_screen.dart';
+import 'package:prj/features/vocational_training/presentation/controllers/course_controller.dart';
+import 'package:prj/features/vocational_training/presentation/screens/course_detail_screen.dart';
 import 'search_discovery_screen.dart';
 import 'service_detail_screen.dart';
 
@@ -29,186 +29,108 @@ class HomeDashboardScreen extends StatefulWidget {
 }
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
-  final PageController _bannerController = PageController();
-  int _currentBannerIndex = 0;
-  Timer? _bannerTimer;
+  int _selectedCategoryIndex = 0;
+  String _selectedBranch = 'Chi nhánh mẫu 01 - Quận 3';
 
-  final List<Map<String, String>> _banners = [
-    {
-      'title': 'Tầm Soát Tim Mạch Toàn Diện',
-      'subtitle': 'Ưu đãi 20% trong tháng Tri Ân Sức Khỏe',
-      'image': 'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?w=600',
-      'tag': 'Y TẾ KỸ THUẬT CAO',
-    },
-    {
-      'title': 'Khai Giảng Khóa Điều Dưỡng Quốc Tế',
-      'subtitle': 'Cấp chứng chỉ hành nghề chuẩn Kaigo Nhật Bản',
-      'image': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=600',
-      'tag': 'ĐÀO TẠO NGHỀ Y KHOA',
-    },
-    {
-      'title': 'Tư Vấn Telehealth Với Chuyên Gia',
-      'subtitle': 'Bác sĩ đầu ngành kết nối trực tuyến 24/7',
-      'image': 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600',
-      'tag': 'CHĂM SÓC TẬN TÂM',
-    },
+  static const _branches = [
+    BranchModel(
+      id: 'br_01',
+      name: 'Chi nhánh mẫu 01 - Quận 3',
+      address: '123 Đường Mẫu, Phường Mẫu, TP. Hồ Chí Minh',
+      openingHours: '09:00 - 20:00 · Cả tuần',
+      imageUrl:
+          'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80',
+    ),
+    BranchModel(
+      id: 'br_02',
+      name: 'Chi nhánh mẫu 02 - Cầu Giấy',
+      address: '45 Đường Mẫu, Phường Mẫu, Cầu Giấy, Hà Nội',
+      openingHours: '09:00 - 20:00 · Cả tuần',
+      imageUrl:
+          'https://images.unsplash.com/photo-1600334129128-685c5582fd35?w=600&auto=format&fit=crop&q=80',
+    ),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _bannerTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (_bannerController.hasClients) {
-        _currentBannerIndex = (_currentBannerIndex + 1) % _banners.length;
-        _bannerController.animateToPage(
-          _currentBannerIndex,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _bannerTimer?.cancel();
-    _bannerController.dispose();
-    super.dispose();
-  }
+  static const _specialists = [
+    SpecialistCard(
+      name: 'Trần Minh Phương',
+      title: 'Kỹ thuật viên massage',
+      specialtyDescription: 'Chăm sóc cơ thể · Thư giãn toàn thân',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
+      rating: 4.9,
+      reviewsCount: 38,
+      yearsOfExperience: 4,
+      isHorizontal: true,
+      width: 176,
+      margin: EdgeInsets.only(right: 12),
+    ),
+    SpecialistCard(
+      name: 'Nguyễn Thu Hà',
+      title: 'Chuyên viên chăm sóc da',
+      specialtyDescription: 'Chăm sóc da · Quy trình dịu nhẹ',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1594824813590-b18bb3901b0b?w=200&auto=format&fit=crop&q=80',
+      rating: 4.8,
+      reviewsCount: 42,
+      yearsOfExperience: 5,
+      isHorizontal: true,
+      width: 176,
+      margin: EdgeInsets.only(right: 12),
+    ),
+    SpecialistCard(
+      name: 'Lê Hoài An',
+      title: 'Chuyên viên chăm sóc cơ thể',
+      specialtyDescription: 'Chạm sâu tận tâm',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&auto=format&fit=crop&q=80',
+      rating: 4.9,
+      reviewsCount: 29,
+      yearsOfExperience: 6,
+      isHorizontal: true,
+      width: 176,
+      margin: EdgeInsets.only(right: 12),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final home = context.watch<HomeController>();
-    final bookingCtrl = context.watch<BookingController>();
     final courseCtrl = context.watch<CourseController>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = auth.currentUser ?? AppConstants.defaultPatientUser;
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBackground,
       body: SafeArea(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Bar Header
+              _Header(
+                name: user.name,
+                onNotificationTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
+              ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.person_outline, color: AppColors.primary),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Xin chào, ${user.name.split(' ').last}!',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Hôm nay bạn muốn chăm sóc bản thân như thế nào?',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: Stack(
-                        children: [
-                          const Icon(Icons.notifications_none_rounded, color: AppColors.primary),
-                          Positioned(
-                            right: 2,
-                            top: 2,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: AppColors.error,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const NotificationsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _BranchSelector(
+                  selectedBranch: _selectedBranch,
+                  branches: _branches,
+                  onChanged: (value) => setState(() => _selectedBranch = value),
                 ),
               ),
-
-              // Branch Selector
+              const SizedBox(height: 12),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Chi nhánh đang chọn',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '• Dữ liệu minh họa',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderLight),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Chi nhánh mẫu 01 – Quận 3',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: InkWell(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _SearchField(
                   onTap: () {
                     Navigator.push(
                       context,
@@ -217,334 +139,59 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       ),
                     );
                   },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.borderLight),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search, color: AppColors.primary, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Tìm dịch vụ, khóa học, chuyên viên...',
-                            style: TextStyle(fontSize: 14, color: AppColors.textSecondaryLight),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Auto-scrolling Hero Promo Banner Carousel
-              SizedBox(
-                height: 160,
-                child: PageView.builder(
-                  controller: _bannerController,
-                  itemCount: _banners.length,
-                  onPageChanged: (idx) => setState(() => _currentBannerIndex = idx),
-                  itemBuilder: (context, index) {
-                    final b = _banners[index];
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Image.network(
-                              b['image']!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, e1, e2) => Container(color: AppColors.primary),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0.85),
-                                    Colors.black.withValues(alpha: 0.3),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(18),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      b['tag']!,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    b['title']!,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    b['subtitle']!,
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.85),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Banner Indicator Dots
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _banners.length,
-                  (i) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: _currentBannerIndex == i ? 18 : 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: _currentBannerIndex == i ? AppColors.primary : Colors.grey.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: WelcomeBannerCard(
+                  onButtonPressed: () => widget.onNavigateTab(2),
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Quick Categories Grid
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _QuickCategoryItem(
-                      icon: Icons.spa_outlined,
-                      label: 'Massage',
-                      color: const Color(0xFF8B5E34),
-                      onTap: () {
-                        home.selectCategory('Massage');
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AllServicesScreen()));
-                      },
-                    ),
-                    _QuickCategoryItem(
-                      icon: Icons.face_retouching_natural_outlined,
-                      label: 'Chăm sóc da',
-                      color: const Color(0xFFEC4899),
-                      onTap: () {
-                        home.selectCategory('Chăm sóc da');
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AllServicesScreen()));
-                      },
-                    ),
-                    _QuickCategoryItem(
-                      icon: Icons.self_improvement_outlined,
-                      label: 'Cơ thể',
-                      color: const Color(0xFFEF4444),
-                      onTap: () {
-                        home.selectCategory('Chăm sóc cơ thể');
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AllServicesScreen()));
-                      },
-                    ),
-                    _QuickCategoryItem(
-                      icon: Icons.sentiment_satisfied_alt,
-                      label: 'Thư giãn',
-                      color: const Color(0xFF00BFA5),
-                      onTap: () {
-                        home.selectCategory('Thư giãn');
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AllServicesScreen()));
-                      },
-                    ),
-                    _QuickCategoryItem(
-                      icon: Icons.school_outlined,
-                      label: 'Học Viện',
-                      color: const Color(0xFFF59E0B),
-                      onTap: () => widget.onNavigateTab(3), // Academy tab (index 3)
-                    ),
-                  ],
-                ),
+              CategoryChips(
+                categories: home.categories,
+                selectedIndex: _selectedCategoryIndex,
+                onSelected: (idx) {
+                  setState(() => _selectedCategoryIndex = idx);
+                  home.selectCategory(home.categories[idx]);
+                },
               ),
-              const SizedBox(height: 24),
-
-              // Recent Booking Snippet (if any)
-              if (bookingCtrl.bookingHistory.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AppointmentDetailScreen(
-                            booking: bookingCtrl.bookingHistory.first,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isDark
-                              ? [const Color(0xFF0F2648), const Color(0xFF0E1A33)]
-                              : [const Color(0xFFEFF6FF), const Color(0xFFE0F2FE)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.event_available, color: Colors.white, size: 22),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Lịch hẹn sắp tới',
-                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '•  ${bookingCtrl.bookingHistory.first.ticketCode}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  '${bookingCtrl.bookingHistory.first.doctorTitle} ${bookingCtrl.bookingHistory.first.doctorName}',
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                                ),
-                                Text(
-                                  '${bookingCtrl.bookingHistory.first.timeSlot} • ${Formatters.formatDate(bookingCtrl.bookingHistory.first.appointmentDate)}',
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right, color: AppColors.primary),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              // SECTION 1: Featured Medical Services
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Dịch Vụ Y Tế Nổi Bật',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AllServicesScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text('Xem tất cả', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 22),
+              _SectionHeader(
+                title: 'Gợi ý dành cho bạn',
+                actionText: 'Xem tất cả',
+                onAction: () => widget.onNavigateTab(1),
               ),
               const SizedBox(height: 8),
               SizedBox(
-                height: 420,
+                height: 330,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: home.services.length,
+                  itemCount: home.filteredServices.length,
                   itemBuilder: (context, index) {
-                    final service = home.services[index];
+                    final service = home.filteredServices[index];
                     return SizedBox(
                       width: 280,
                       child: Padding(
-                        padding: const EdgeInsets.only(right: 16),
+                        padding: const EdgeInsets.only(right: 14),
                         child: ServiceCard(
                           service: service,
+                          actionType: ServiceCardActionType.both,
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ServiceDetailScreen(service: service),
+                                builder: (_) =>
+                                    ServiceDetailScreen(service: service),
                               ),
                             );
                           },
                           onBookNow: () {
-                            final booking = context.read<BookingController>();
-                            booking.startBooking(service: service);
+                            context
+                                .read<BookingController>()
+                                .startBooking(service: service);
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -558,99 +205,61 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // SECTION 2: Top Doctors
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Đội Ngũ Bác Sĩ & Chuyên Gia',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        // Just navigate to all services for now
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AllServicesScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text('Xem tất cả', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 20),
+              _SectionHeader(
+                title: 'Chi nhánh tiêu biểu',
+                actionText: 'Xem tất cả',
+                onAction: () {},
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               SizedBox(
-                height: 190,
+                height: 330,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: home.doctors.length,
+                  itemCount: _branches.length,
                   itemBuilder: (context, index) {
-                    final doc = home.doctors[index];
-                    return DoctorCard(
-                      doctor: doc,
-                      isHorizontal: true,
-                      onTap: () {
-                        final booking = context.read<BookingController>();
-                        booking.startBooking(
-                          service: home.services.first,
-                          doctor: doc,
-                        );
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const BookingFlowScreen(),
-                          ),
-                        );
-                      },
+                    final branch = _branches[index];
+                    return SizedBox(
+                      width: 290,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 14),
+                        child: BranchCard(
+                          branch: branch,
+                          onDirectionsTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Đang mở bản đồ đến ${branch.name}'),
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     );
                   },
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // SECTION 3: Vocational Training Academy Highlight (Group E)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Icon(Icons.school, color: AppColors.gold, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Học Viện Nghề Y Khoa',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => widget.onNavigateTab(3),
-                      child: const Text('Xem khóa học', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
+              const SizedBox(height: 20),
+              _SectionHeader(
+                title: 'Chuyên viên gợi ý',
+                actionText: 'Xem tất cả',
+                onAction: () => widget.onNavigateTab(1),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 210,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  children: _specialists,
                 ),
+              ),
+              const SizedBox(height: 20),
+              _SectionHeader(
+                title: 'Đào tạo & Khóa học Spa',
+                actionText: 'Xem khóa học',
+                onAction: () => widget.onNavigateTab(3),
               ),
               const SizedBox(height: 8),
               SizedBox(
@@ -677,7 +286,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 36),
             ],
           ),
         ),
@@ -686,45 +294,254 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   }
 }
 
-class _QuickCategoryItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
+class _Header extends StatelessWidget {
+  final String name;
+  final VoidCallback onNotificationTap;
 
-  const _QuickCategoryItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
+  const _Header({required this.name, required this.onNotificationTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = name.trim().split(' ').last;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 22,
+            backgroundColor: AppColors.primaryLight,
+            child: Icon(
+              Icons.person_outline_rounded,
+              color: AppColors.primary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Xin chào, $displayName!',
+                  style: AppTypography.cardTitle.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Hôm nay bạn muốn chăm sóc bản thân như thế nào?',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.subText,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onNotificationTap,
+            icon: Stack(
+              children: [
+                const Icon(
+                  Icons.notifications_none_rounded,
+                  color: AppColors.primary,
+                  size: 24,
+                ),
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BranchSelector extends StatelessWidget {
+  final String selectedBranch;
+  final List<BranchModel> branches;
+  final ValueChanged<String> onChanged;
+
+  const _BranchSelector({
+    required this.selectedBranch,
+    required this.branches,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Chi nhánh đang chọn',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: AppColors.white,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (ctx) => SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          'Chọn chi nhánh',
+                          style: AppTypography.sectionTitle,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...branches.map(
+                        (branch) => ListTile(
+                          title: Text(branch.name, style: AppTypography.cardTitle),
+                          subtitle:
+                              Text(branch.address, style: AppTypography.subText),
+                          trailing: selectedBranch == branch.name
+                              ? const Icon(Icons.check, color: AppColors.primary)
+                              : null,
+                          onTap: () {
+                            onChanged(branch.name);
+                            Navigator.pop(ctx);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedBranch,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
+class _SearchField extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _SearchField({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Column(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 19),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Tìm dịch vụ, khóa học, chuyên viên...',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String actionText;
+  final VoidCallback onAction;
+
+  const _SectionHeader({
+    required this.title,
+    required this.actionText,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.2)),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.sectionTitle,
             ),
-            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-            ),
+          TextButton(
+            onPressed: onAction,
+            child: Text(actionText),
           ),
         ],
       ),

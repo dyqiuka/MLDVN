@@ -11,73 +11,59 @@ class CustomBottomNav extends StatelessWidget {
     required this.onTap,
   });
 
+  static const _items = [
+    _BottomNavData(Icons.home_outlined, Icons.home_rounded, 'Trang chủ'),
+    _BottomNavData(Icons.spa_outlined, Icons.spa_rounded, 'Dịch vụ'),
+    _BottomNavData(
+      Icons.calendar_today_outlined,
+      Icons.calendar_month_rounded,
+      'Lịch hẹn',
+    ),
+    _BottomNavData(Icons.school_outlined, Icons.school_rounded, 'Khóa học'),
+    _BottomNavData(
+      Icons.person_outline_rounded,
+      Icons.person_rounded,
+      'Cá nhân',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        color: isDark ? AppColors.surfaceDark : AppColors.white,
         border: Border(
           top: BorderSide(
             color: isDark ? AppColors.borderDark : AppColors.borderLight,
-            width: 1,
           ),
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, -2),
           ),
         ],
       ),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        top: false,
+        child: SizedBox(
+          height: 64,
           child: Row(
-            children: [
-              Expanded(
-                child: _NavItem(
-                  icon: currentIndex == 0 ? Icons.home_rounded : Icons.home_outlined,
-                  label: 'Trang chủ',
-                  isSelected: currentIndex == 0,
-                  onTap: () => onTap(0),
+            children: List.generate(_items.length, (index) {
+              final item = _items[index];
+              return Expanded(
+                child: _NavBarItem(
+                  icon: item.icon,
+                  activeIcon: item.activeIcon,
+                  label: item.label,
+                  isSelected: currentIndex == index,
+                  onTap: () => onTap(index),
                 ),
-              ),
-              Expanded(
-                child: _NavItem(
-                  icon: currentIndex == 1 ? Icons.eco_rounded : Icons.eco_outlined,
-                  label: 'Dịch vụ',
-                  isSelected: currentIndex == 1,
-                  onTap: () => onTap(1),
-                ),
-              ),
-              Expanded(
-                child: _NavItem(
-                  icon: currentIndex == 2 ? Icons.calendar_month_rounded : Icons.calendar_today_outlined,
-                  label: 'Đặt lịch',
-                  isSelected: currentIndex == 2,
-                  onTap: () => onTap(2),
-                ),
-              ),
-              Expanded(
-                child: _NavItem(
-                  icon: currentIndex == 3 ? Icons.school_rounded : Icons.school_outlined,
-                  label: 'Học viện',
-                  isSelected: currentIndex == 3,
-                  onTap: () => onTap(3),
-                ),
-              ),
-              Expanded(
-                child: _NavItem(
-                  icon: currentIndex == 4 ? Icons.person_rounded : Icons.person_outline_rounded,
-                  label: 'Cá nhân',
-                  isSelected: currentIndex == 4,
-                  onTap: () => onTap(4),
-                ),
-              ),
-            ],
+              );
+            }),
           ),
         ),
       ),
@@ -85,14 +71,24 @@ class CustomBottomNav extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
+class _BottomNavData {
   final IconData icon;
+  final IconData activeIcon;
+  final String label;
+
+  const _BottomNavData(this.icon, this.activeIcon, this.label);
+}
+
+class _NavBarItem extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _NavItem({
+  const _NavBarItem({
     required this.icon,
+    required this.activeIcon,
     required this.label,
     required this.isSelected,
     required this.onTap,
@@ -101,42 +97,45 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final selectedColor = AppColors.primary;
-    final unselectedColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final inactiveColor =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
 
-    return InkWell(
+    return InkResponse(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryLight.withValues(alpha: isDark ? 0.2 : 0.7) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? selectedColor : unselectedColor,
+      radius: 28,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.tabActiveBackground
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
             ),
-            const SizedBox(height: 3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? selectedColor : unselectedColor,
-                ),
-              ),
+            child: Icon(
+              isSelected ? activeIcon : icon,
+              size: 21,
+              color: isSelected ? AppColors.primary : inactiveColor,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              color: isSelected ? AppColors.primary : inactiveColor,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
       ),
     );
   }

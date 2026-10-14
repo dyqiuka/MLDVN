@@ -18,7 +18,7 @@ class HomeController extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   bool get isLoading => _isLoading;
 
-  final List<String> categories = [
+  final List<String> categories = const [
     'Tất cả',
     'Massage',
     'Chăm sóc da',
@@ -53,18 +53,20 @@ class HomeController extends ChangeNotifier {
   }
 
   List<ServiceModel> get filteredServices {
-    return _services.where((s) {
-      final matchesCategory = _selectedCategory == 'Tất cả' || s.category == _selectedCategory;
-      final matchesQuery = _searchQuery.isEmpty ||
-          s.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.category.toLowerCase().contains(_searchQuery.toLowerCase());
+    return _services.where((service) {
+      final matchesCategory =
+          _selectedCategory == 'Tất cả' || service.category == _selectedCategory;
+      final normalizedQuery = _searchQuery.toLowerCase();
+      final matchesQuery = normalizedQuery.isEmpty ||
+          service.name.toLowerCase().contains(normalizedQuery) ||
+          service.category.toLowerCase().contains(normalizedQuery);
       return matchesCategory && matchesQuery;
     }).toList();
   }
 
   DoctorModel? getDoctorById(String id) {
     try {
-      return _doctors.firstWhere((d) => d.id == id);
+      return _doctors.firstWhere((doctor) => doctor.id == id);
     } catch (_) {
       return null;
     }
@@ -72,7 +74,7 @@ class HomeController extends ChangeNotifier {
 
   ServiceModel? getServiceById(String id) {
     try {
-      return _services.firstWhere((s) => s.id == id);
+      return _services.firstWhere((service) => service.id == id);
     } catch (_) {
       return null;
     }

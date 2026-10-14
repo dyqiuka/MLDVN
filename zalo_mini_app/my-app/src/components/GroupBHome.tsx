@@ -315,9 +315,17 @@ export const GroupBHome: React.FC<GroupBHomeProps> = ({
               onClick={() => onViewServiceDetail(service)}
               className="bg-white rounded-2xl p-3.5 border border-[#EADECF] shadow-xs space-y-3 cursor-pointer hover:border-[#98501B] active:bg-[#FAF6F0]/50 transition"
             >
-              <Box className="flex space-x-3 items-start">
-                <div className="relative w-24 h-24 rounded-xl overflow-hidden shrink-0">
-                  <img src={service.image} alt={service.title} className="w-full h-full object-cover" />
+              <Box className="space-y-2">
+                <Box className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-bold text-[#7A685D]">{service.durationMinutes} phút</span>
+                    <span className="text-[10px] text-stone-400">•</span>
+                    <span className="text-xs font-bold text-[#98501B]">{service.price.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                  <Text className="text-xs font-bold text-[#40352F] leading-snug">{service.title}</Text>
+                </Box>
+                <div className="relative h-[170px] w-full overflow-hidden rounded-[8px]">
+                  <img src={service.image} alt={service.title} className="h-full w-full object-cover" />
                   <button
                     onClick={(e) => toggleFavorite(service.id, e)}
                     className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/80 backdrop-blur flex items-center justify-center text-stone-700 shadow-xs"
@@ -330,23 +338,7 @@ export const GroupBHome: React.FC<GroupBHomeProps> = ({
                   </button>
                 </div>
 
-                <Box className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[10px] font-bold text-[#7A685D]">
-                      {service.durationMinutes} phút
-                    </span>
-                    <span className="text-[10px] text-stone-400">•</span>
-                    <span className="text-xs font-bold text-[#98501B]">
-                      {service.price.toLocaleString('vi-VN')}đ
-                    </span>
-                  </div>
-                  <Text className="text-xs font-bold text-[#40352F] leading-snug">
-                    {service.title}
-                  </Text>
-                  <Text className="text-[11px] text-[#7A685D] line-clamp-2">
-                    {service.description}
-                  </Text>
-                </Box>
+                <Text className="text-[11px] text-[#7A685D] line-clamp-2">{service.description}</Text>
               </Box>
 
               <Box className="flex items-center justify-between pt-2 border-t border-[#EADECF]">

@@ -2,85 +2,120 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
-/// Typography hierarchy for Healthcare & EdTech design system
 class AppTypography {
-  static TextTheme textTheme(bool isDark) {
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryTextColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+  static const TextStyle sectionTitle = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textPrimary,
+    letterSpacing: 0,
+    height: 1.35,
+  );
 
-    return GoogleFonts.interTextTheme(
+  static const TextStyle cardTitle = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textPrimary,
+    letterSpacing: 0,
+    height: 1.35,
+  );
+
+  static const TextStyle subText = TextStyle(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textSecondary,
+    height: 1.4,
+  );
+
+  static const TextStyle priceTag = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w700,
+    color: AppColors.accentPrice,
+    letterSpacing: 0,
+  );
+
+  static const TextStyle bannerTitle = TextStyle(
+    fontSize: 17,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textPrimary,
+    letterSpacing: 0,
+    height: 1.35,
+  );
+
+  static const TextStyle buttonText = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.1,
+  );
+
+  static TextTheme textTheme(bool isDark) {
+    final primaryTextColor =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryTextColor =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    return GoogleFonts.plusJakartaSansTextTheme(
       TextTheme(
-        // Heading 1 - Screen titles, Hero banners
         displayLarge: TextStyle(
-          fontSize: 28,
+          fontSize: 26,
           fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
+          letterSpacing: 0,
           color: primaryTextColor,
           height: 1.25,
         ),
-        // Heading 2 - Section headers
         displayMedium: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.3,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
           color: primaryTextColor,
           height: 1.3,
         ),
-        // Heading 3 - Card titles, Modal headers
         displaySmall: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
-          letterSpacing: -0.2,
+          letterSpacing: 0,
           color: primaryTextColor,
           height: 1.35,
         ),
-        // Subtitle 1 - Prominent highlights
         titleMedium: TextStyle(
-          fontSize: 16,
+          fontSize: 15.5,
           fontWeight: FontWeight.w600,
           color: primaryTextColor,
-          height: 1.4,
+          height: 1.35,
         ),
-        // Subtitle 2 - Group labels
         titleSmall: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: primaryTextColor,
           height: 1.4,
         ),
-        // Body 1 - Regular paragraphs
         bodyLarge: TextStyle(
-          fontSize: 15,
+          fontSize: 14,
           fontWeight: FontWeight.w400,
           color: primaryTextColor,
           height: 1.5,
         ),
-        // Body 2 - Secondary descriptions
         bodyMedium: TextStyle(
-          fontSize: 13,
+          fontSize: 12.5,
           fontWeight: FontWeight.w400,
           color: secondaryTextColor,
           height: 1.45,
         ),
-        // Caption - Metadata, stamps, tiny badges
         bodySmall: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w400,
           color: secondaryTextColor,
           height: 1.4,
         ),
-        // Button text
         labelLarge: const TextStyle(
-          fontSize: 15,
+          fontSize: 14.5,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.2,
+          letterSpacing: 0.1,
           height: 1.2,
         ),
-        // Badges / Tags
         labelSmall: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
+          letterSpacing: 0.1,
           height: 1.2,
         ),
       ),

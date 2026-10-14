@@ -18,11 +18,12 @@ import {
 
 interface GroupDTreatmentProps {
   onOpenBooking: () => void;
+  onClose: () => void;
   onOpenConsultation?: () => void;
   initialTab?: 'packages' | 'journal' | 'care_guide' | 'support' | 'notifications';
 }
 
-export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking, initialTab = 'packages' }) => {
+export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking, onClose, initialTab = 'packages' }) => {
   const [activeTab, setActiveTab] = useState<'packages' | 'journal' | 'care_guide' | 'support' | 'notifications'>(initialTab);
   const [packageTab, setPackageTab] = useState<'active' | 'completed' | 'expired'>('active');
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null);
@@ -121,6 +122,7 @@ export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking,
 
   return (
     <div className="space-y-3 px-3 pt-3 pb-20">
+      <button onClick={onClose} aria-label="Quay lại" className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#DED2C5] bg-white"><ArrowLeftIcon size={18} color="#40352F" /></button>
       {/* Top Navigation Tabs for Group D (Figma 04 D01 - D08) */}
       <div className="hidden">
         {[
