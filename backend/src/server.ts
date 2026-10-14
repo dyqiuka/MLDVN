@@ -291,9 +291,18 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.post('/api/auth/zalo', asyncRoute(async (req: Request, res: Response) => {
   const { accessToken, userInfo } = req.body;
   if (!accessToken) return res.status(400).json({ error: 'Thiếu access token Zalo' });
-  const graphResponse = await fetch(`https://graph.zalo.me/v2.0/me?access_token=${encodeURIComponent(accessToken)}&fields=id,name,picture`);
+  const graphResponse = await fetch('https://graph.zalo.me/v2.0/me?fields=id,name,picture', {
+    headers: { access_token: String(accessToken) },
+  });
   const graph: any = await graphResponse.json().catch(() => ({}));
-  if (!graphResponse.ok || graph.error || !graph.id) return res.status(401).json({ error: 'Không thể xác minh tài khoản Zalo' });
+  if (!graphResponse.ok || graph.error || !graph.id) {
+    console.warn('[AUTH] Zalo token verification failed', {
+      status: graphResponse.status,
+      error: graph.error,
+      message: graph.message,
+    });
+    return res.status(401).json({ error: 'Không thể xác minh tài khoản Zalo. Vui lòng đóng Mini App và mở lại.' });
+  }
   if (userInfo?.id && String(userInfo.id) !== String(graph.id)) return res.status(401).json({ error: 'Thông tin tài khoản Zalo không khớp' });
   const avatar = userInfo?.avatar || graph.picture?.data?.url || graph.picture || null;
   const name = userInfo?.name || graph.name || 'Khách hàng Zalo';
