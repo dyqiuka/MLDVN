@@ -1,13 +1,38 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { BookingStatus, EnrollmentStatus, Prisma, UserRole } from '@prisma/client';
 import { database } from './data/database.js';
 import { prisma } from './lib/prisma.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const AUTH_SECRET = process.env.AUTH_SECRET || process.env.DATABASE_URL || 'mld-local-development-secret';
 const asyncRoute = (handler: (req: Request, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response, next: express.NextFunction) => Promise.resolve(handler(req, res)).catch(next);
+
+const signSession = (userId: string) => {
+  const payload = Buffer.from(JSON.stringify({ userId, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 })).toString('base64url');
+  const signature = createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+};
+
+const sessionUserId = (req: Request) => {
+  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return null;
+  const expected = createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  const left = Buffer.from(signature);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !timingSafeEqual(left, right)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return parsed.expiresAt > Date.now() && typeof parsed.userId === 'string' ? parsed.userId : null;
+  } catch { return null; }
+};
+
+const userIdFrom = (req: Request) => sessionUserId(req) || 'usr_001';
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -263,6 +288,21 @@ app.get('/api/health', (req: Request, res: Response) => {
 // ==========================================
 // 1. AUTH & USER ENDPOINTS (GROUP A)
 // ==========================================
+app.post('/api/auth/zalo', asyncRoute(async (req: Request, res: Response) => {
+  const { accessToken, userInfo } = req.body;
+  if (!accessToken) return res.status(400).json({ error: 'Thiếu access token Zalo' });
+  const graphResponse = await fetch(`https://graph.zalo.me/v2.0/me?access_token=${encodeURIComponent(accessToken)}&fields=id,name,picture`);
+  const graph: any = await graphResponse.json().catch(() => ({}));
+  if (!graphResponse.ok || graph.error || !graph.id) return res.status(401).json({ error: 'Không thể xác minh tài khoản Zalo' });
+  if (userInfo?.id && String(userInfo.id) !== String(graph.id)) return res.status(401).json({ error: 'Thông tin tài khoản Zalo không khớp' });
+  const avatar = userInfo?.avatar || graph.picture?.data?.url || graph.picture || null;
+  const name = userInfo?.name || graph.name || 'Khách hàng Zalo';
+  const existing = await prisma.user.findUnique({ where: { zaloId: String(graph.id) } });
+  const user = existing
+    ? await prisma.user.update({ where: { id: existing.id }, data: { name, avatarUrl: avatar } })
+    : await prisma.user.create({ data: { zaloId: String(graph.id), name, avatarUrl: avatar, role: UserRole.CUSTOMER, tier: 'Silver', points: 0 } });
+  res.json({ token: signSession(user.id), user: serializeUser(user), isNewUser: !existing });
+}));
 app.post('/api/auth/send-otp', (req: Request, res: Response) => {
   const { phone } = req.body;
   if (!phone) {
@@ -340,9 +380,9 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   });
 });
 
-app.get('/api/auth/me', async (_req: Request, res: Response) => {
+app.get('/api/auth/me', async (req: Request, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: 'usr_001' } });
+    const user = await prisma.user.findUnique({ where: { id: userIdFrom(req) } });
     if (!user) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
     res.json({ user: serializeUser(user) });
   } catch (error) {
@@ -359,7 +399,7 @@ app.put('/api/auth/profile', async (req: Request, res: Response) => {
   if (!name?.trim()) return res.status(400).json({ error: 'Họ và tên không được để trống' });
   try {
     const user = await prisma.user.update({
-      where: { id: 'usr_001' },
+      where: { id: userIdFrom(req) },
       data: {
         name: name.trim(),
         email: email?.trim() || null,
@@ -454,9 +494,9 @@ app.get('/api/branches', async (_req: Request, res: Response) => {
 // ==========================================
 // 3. BOOKINGS & PAYMENTS (GROUP C)
 // ==========================================
-app.get('/api/bookings', async (_req: Request, res: Response) => {
+app.get('/api/bookings', async (req: Request, res: Response) => {
   try {
-    const bookings = await prisma.booking.findMany({ include: bookingInclude, orderBy: { scheduledAt: 'desc' } });
+    const bookings = await prisma.booking.findMany({ where: { userId: userIdFrom(req) }, include: bookingInclude, orderBy: { scheduledAt: 'desc' } });
     res.json({ total: bookings.length, bookings: bookings.map(serializeBooking) });
   } catch (error) {
     console.error('[API] GET /bookings failed', error);
@@ -467,7 +507,7 @@ app.get('/api/bookings', async (_req: Request, res: Response) => {
 app.get('/api/bookings/:id', async (req: Request, res: Response) => {
   try {
     const booking = await prisma.booking.findFirst({
-      where: { OR: [{ id: req.params.id }, { code: req.params.id }] },
+      where: { userId: userIdFrom(req), OR: [{ id: req.params.id }, { code: req.params.id }] },
       include: bookingInclude,
     });
     if (!booking) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn' });
@@ -512,7 +552,7 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     let finalAmount = Number(service.price);
     if (voucherCode) {
       appliedUserVoucher = await prisma.userVoucher.findFirst({
-        where: { userId: 'usr_001', usedAt: null, voucher: { code: String(voucherCode).trim().toUpperCase() } },
+        where: { userId: userIdFrom(req), usedAt: null, voucher: { code: String(voucherCode).trim().toUpperCase() } },
         include: { voucher: true },
       });
       const voucher = appliedUserVoucher?.voucher;
@@ -561,7 +601,7 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     }
 
     const user = await prisma.user.update({
-      where: { id: 'usr_001' },
+      where: { id: userIdFrom(req) },
       data: {
         ...(userName ? { name: userName } : {}),
         ...(userPhone ? { phone: String(userPhone).replace(/\s/g, '') } : {}),
@@ -616,7 +656,7 @@ app.patch('/api/bookings/:id/reschedule', async (req: Request, res: Response) =>
   const scheduledAt = parseBookingDate(date, timeSlot);
   if (!scheduledAt) return res.status(400).json({ error: 'Ngày hoặc giờ hẹn không hợp lệ' });
   try {
-    const current = await prisma.booking.findUnique({ where: { id: req.params.id }, include: { service: true } });
+    const current = await prisma.booking.findFirst({ where: { id: req.params.id, userId: userIdFrom(req) }, include: { service: true } });
     if (!current) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn' });
     if (current.status === BookingStatus.CANCELLED || current.status === BookingStatus.COMPLETED) {
       return res.status(409).json({ error: 'Không thể đổi lịch đã hủy hoặc đã hoàn thành' });
@@ -647,7 +687,7 @@ app.patch('/api/bookings/:id/reschedule', async (req: Request, res: Response) =>
 
 app.patch('/api/bookings/:id/cancel', async (req: Request, res: Response) => {
   try {
-    const current = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    const current = await prisma.booking.findFirst({ where: { id: req.params.id, userId: userIdFrom(req) } });
     if (!current) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn' });
     if (current.status === BookingStatus.COMPLETED) return res.status(409).json({ error: 'Không thể hủy lịch đã hoàn thành' });
     if (current.status === BookingStatus.CANCELLED) return res.status(409).json({ error: 'Lịch hẹn này đã được hủy trước đó' });
@@ -693,10 +733,10 @@ app.get('/api/courses/:id', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/course-enrollments', async (_req: Request, res: Response) => {
+app.get('/api/course-enrollments', async (req: Request, res: Response) => {
   try {
     const enrollments = await prisma.courseEnrollment.findMany({
-      where: { userId: 'usr_001' }, include: { course: true }, orderBy: { createdAt: 'desc' },
+      where: { userId: userIdFrom(req) }, include: { course: true }, orderBy: { createdAt: 'desc' },
     });
     res.json({ enrollments: enrollments.map(serializeEnrollment) });
   } catch (error) {
@@ -714,7 +754,7 @@ app.post('/api/course-enrollments', async (req: Request, res: Response) => {
     const course = await prisma.course.findUnique({ where: { id: courseId } });
     if (!course || !course.isActive) return res.status(404).json({ error: 'Khóa học không tồn tại hoặc đã ngừng tuyển sinh' });
     const existing = await prisma.courseEnrollment.findUnique({
-      where: { userId_courseId: { userId: 'usr_001', courseId } }, include: { course: true },
+      where: { userId_courseId: { userId: userIdFrom(req), courseId } }, include: { course: true },
     });
     if (existing && existing.status !== EnrollmentStatus.CANCELLED) {
       return res.status(409).json({ error: 'Bạn đã đăng ký khóa học này', enrollment: serializeEnrollment(existing) });
@@ -723,7 +763,7 @@ app.post('/api/course-enrollments', async (req: Request, res: Response) => {
     let finalAmount = Number(course.price);
     if (voucherCode) {
       appliedUserVoucher = await prisma.userVoucher.findFirst({
-        where: { userId: 'usr_001', usedAt: null, voucher: { code: String(voucherCode).trim().toUpperCase() } },
+        where: { userId: userIdFrom(req), usedAt: null, voucher: { code: String(voucherCode).trim().toUpperCase() } },
         include: { voucher: true },
       });
       const voucher = appliedUserVoucher?.voucher;
@@ -749,15 +789,15 @@ app.post('/api/course-enrollments', async (req: Request, res: Response) => {
             include: { course: true },
           })
         : await tx.courseEnrollment.create({
-            data: { code, userId: 'usr_001', courseId, studentName: studentName.trim(), phone: phone.trim(), email: email?.trim() || null, totalAmount: finalAmount },
+            data: { code, userId: userIdFrom(req), courseId, studentName: studentName.trim(), phone: phone.trim(), email: email?.trim() || null, totalAmount: finalAmount },
             include: { course: true },
           });
       await tx.notification.create({
-        data: { userId: 'usr_001', type: 'course', entityId: saved.id, title: 'Đăng ký khóa học thành công', message: `${course.title} đã được giữ chỗ. Bộ phận đào tạo sẽ liên hệ xác nhận học phí.` },
+        data: { userId: userIdFrom(req), type: 'course', entityId: saved.id, title: 'Đăng ký khóa học thành công', message: `${course.title} đã được giữ chỗ. Bộ phận đào tạo sẽ liên hệ xác nhận học phí.` },
       });
       if (appliedUserVoucher) {
         await tx.userVoucher.update({
-          where: { userId_voucherId: { userId: 'usr_001', voucherId: appliedUserVoucher.voucherId } },
+          where: { userId_voucherId: { userId: userIdFrom(req), voucherId: appliedUserVoucher.voucherId } },
           data: { usedAt: new Date() },
         });
         await tx.voucher.update({ where: { id: appliedUserVoucher.voucherId }, data: { usageCount: { increment: 1 } } });
@@ -820,18 +860,18 @@ app.get('/api/records/:id', (req: Request, res: Response) => {
 // ==========================================
 // 6. MEMBERSHIP & VOUCHERS (GROUP F)
 // ==========================================
-app.get('/api/membership', async (_req: Request, res: Response) => {
+app.get('/api/membership', async (req: Request, res: Response) => {
   try {
     const [user, userVouchers, upcomingBookings, activeEnrollments, treatmentPlans] = await Promise.all([
-      prisma.user.findUnique({ where: { id: 'usr_001' } }),
+      prisma.user.findUnique({ where: { id: userIdFrom(req) } }),
       prisma.userVoucher.findMany({
-        where: { userId: 'usr_001', voucher: { isActive: true } },
+        where: { userId: userIdFrom(req), voucher: { isActive: true } },
         include: { voucher: true },
         orderBy: { claimedAt: 'desc' },
       }),
-      prisma.booking.count({ where: { userId: 'usr_001', status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] }, scheduledAt: { gte: new Date() } } }),
-      prisma.courseEnrollment.count({ where: { userId: 'usr_001', status: { in: [EnrollmentStatus.PENDING, EnrollmentStatus.CONFIRMED] } } }),
-      prisma.treatmentPlan.findMany({ where: { userId: 'usr_001', status: 'ACTIVE' }, include: { sessions: true } }),
+      prisma.booking.count({ where: { userId: userIdFrom(req), status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] }, scheduledAt: { gte: new Date() } } }),
+      prisma.courseEnrollment.count({ where: { userId: userIdFrom(req), status: { in: [EnrollmentStatus.PENDING, EnrollmentStatus.CONFIRMED] } } }),
+      prisma.treatmentPlan.findMany({ where: { userId: userIdFrom(req), status: 'ACTIVE' }, include: { sessions: true } }),
     ]);
     if (!user) return res.status(404).json({ error: 'Không tìm thấy hội viên' });
     const remainingTreatmentSessions = treatmentPlans.reduce((sum, plan) => {
@@ -849,10 +889,10 @@ app.get('/api/membership', async (_req: Request, res: Response) => {
   }
 });
 
-app.get('/api/treatment-plans', async (_req: Request, res: Response) => {
+app.get('/api/treatment-plans', async (req: Request, res: Response) => {
   try {
     const plans = await prisma.treatmentPlan.findMany({
-      where: { userId: 'usr_001' },
+      where: { userId: userIdFrom(req) },
       include: { service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } },
       orderBy: { purchasedAt: 'desc' },
     });
@@ -932,17 +972,17 @@ app.patch('/api/admin/treatment-sessions/:id', asyncRoute(async (req: Request, r
   res.json({ treatmentPlan: serializeTreatmentPlan(session.plan) });
 }));
 
-app.get('/api/transactions', asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/transactions', asyncRoute(async (req: Request, res: Response) => {
   const [invoices, pointTransactions] = await Promise.all([
-    prisma.invoice.findMany({ where: { userId: 'usr_001' }, orderBy: { createdAt: 'desc' } }),
-    prisma.pointTransaction.findMany({ where: { userId: 'usr_001' }, orderBy: { createdAt: 'desc' } }),
+    prisma.invoice.findMany({ where: { userId: userIdFrom(req) }, orderBy: { createdAt: 'desc' } }),
+    prisma.pointTransaction.findMany({ where: { userId: userIdFrom(req) }, orderBy: { createdAt: 'desc' } }),
   ]);
   res.json({ invoices: invoices.map(serializeInvoice), pointTransactions, totalSpent: invoices.filter((item) => item.status === 'PAID').reduce((sum, item) => sum + Number(item.finalAmount), 0) });
 }));
 
-app.get('/api/notifications', async (_req: Request, res: Response) => {
+app.get('/api/notifications', async (req: Request, res: Response) => {
   try {
-    const notifications = await prisma.notification.findMany({ where: { userId: 'usr_001' }, orderBy: { createdAt: 'desc' }, take: 50 });
+    const notifications = await prisma.notification.findMany({ where: { userId: userIdFrom(req) }, orderBy: { createdAt: 'desc' }, take: 50 });
     res.json({ unreadCount: notifications.filter((item) => !item.readAt).length, notifications: notifications.map(serializeNotification) });
   } catch (error) {
     console.error('[API] GET /notifications failed', error);
@@ -950,9 +990,9 @@ app.get('/api/notifications', async (_req: Request, res: Response) => {
   }
 });
 
-app.patch('/api/notifications/read-all', async (_req: Request, res: Response) => {
+app.patch('/api/notifications/read-all', async (req: Request, res: Response) => {
   try {
-    await prisma.notification.updateMany({ where: { userId: 'usr_001', readAt: null }, data: { readAt: new Date() } });
+    await prisma.notification.updateMany({ where: { userId: userIdFrom(req), readAt: null }, data: { readAt: new Date() } });
     res.json({ message: 'Đã đánh dấu tất cả thông báo là đã đọc' });
   } catch (error) {
     res.status(500).json({ error: 'Không thể cập nhật thông báo' });
@@ -961,7 +1001,7 @@ app.patch('/api/notifications/read-all', async (_req: Request, res: Response) =>
 
 app.patch('/api/notifications/:id/read', async (req: Request, res: Response) => {
   try {
-    const notification = await prisma.notification.findFirst({ where: { id: req.params.id, userId: 'usr_001' } });
+    const notification = await prisma.notification.findFirst({ where: { id: req.params.id, userId: userIdFrom(req) } });
     if (!notification) return res.status(404).json({ error: 'Không tìm thấy thông báo' });
     const updated = await prisma.notification.update({ where: { id: notification.id }, data: { readAt: new Date() } });
     res.json({ notification: serializeNotification(updated) });
@@ -979,11 +1019,11 @@ app.post('/api/vouchers/claim', asyncRoute(async (req: Request, res: Response) =
     return res.status(404).json({ error: 'Mã ưu đãi không tồn tại hoặc đã hết hạn' });
   }
   const existing = await prisma.userVoucher.findUnique({
-    where: { userId_voucherId: { userId: 'usr_001', voucherId: voucher.id } },
+    where: { userId_voucherId: { userId: userIdFrom(req), voucherId: voucher.id } },
   });
   if (existing) return res.status(409).json({ error: 'Mã ưu đãi đã có trong ví của bạn' });
   const claimed = await prisma.userVoucher.create({
-    data: { userId: 'usr_001', voucherId: voucher.id }, include: { voucher: true },
+    data: { userId: userIdFrom(req), voucherId: voucher.id }, include: { voucher: true },
   });
   res.status(201).json({ voucher: serializeVoucher(claimed), message: `Đã thêm ${code} vào ví ưu đãi` });
 }));
@@ -994,7 +1034,7 @@ app.post('/api/vouchers/apply', asyncRoute(async (req: Request, res: Response) =
     return res.status(400).json({ error: 'Vui lòng nhập mã giảm giá' });
   }
   const userVoucher = await prisma.userVoucher.findFirst({
-    where: { userId: 'usr_001', usedAt: null, voucher: { code: String(code).trim().toUpperCase() } },
+    where: { userId: userIdFrom(req), usedAt: null, voucher: { code: String(code).trim().toUpperCase() } },
     include: { voucher: true },
   });
   const voucher = userVoucher?.voucher;

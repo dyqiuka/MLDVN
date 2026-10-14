@@ -99,6 +99,8 @@ function MasterHomePage() {
   // Fetch real data from Backend on mount
   useEffect(() => {
     async function loadBackendData() {
+      const zaloSession = await apiClient.loginWithZalo();
+      if (zaloSession?.user) setUser((prev) => ({ ...prev, ...zaloSession.user }));
       const [srvData, docData, brData, crsData, recData, membData, bkData, notifData, treatmentData] = await Promise.all([
         apiClient.getServices(),
         apiClient.getDoctors(),

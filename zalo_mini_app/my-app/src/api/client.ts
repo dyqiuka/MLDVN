@@ -1,4 +1,11 @@
+import { getAccessToken, getUserInfo } from 'zmp-sdk';
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://mld-api.onrender.com/api').replace(/\/$/, '');
+const SESSION_KEY = 'mld_session_token';
+const fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const token = localStorage.getItem(SESSION_KEY);
+  return window.fetch(input, { ...init, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers || {}) } });
+};
 
 const responseJson = async (res: Response) => {
   const data = await res.json().catch(() => ({}));
@@ -7,6 +14,26 @@ const responseJson = async (res: Response) => {
 };
 
 export const apiClient = {
+  async loginWithZalo() {
+    try {
+      const accessToken = await getAccessToken();
+      const profile = await getUserInfo({ autoRequestPermission: true, avatarType: 'large' }).catch(() => null);
+      const res = await fetch(`${API_BASE_URL}/auth/zalo`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken, userInfo: profile?.userInfo }),
+      });
+      const data = await responseJson(res);
+      if (data.token) localStorage.setItem(SESSION_KEY, data.token);
+      return data;
+    } catch (error) {
+      console.info('[AUTH] Zalo login is only available inside Zalo Mini App', error);
+      return null;
+    }
+  },
+
+  logout() {
+    localStorage.removeItem(SESSION_KEY);
+  },
   async getHealth() {
     try {
       const res = await fetch(`${API_BASE_URL}/health`);
