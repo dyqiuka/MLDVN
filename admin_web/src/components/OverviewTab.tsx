@@ -1,315 +1,53 @@
-import React from 'react';
-import {
-  Wallet,
-  Receipt,
-  Calendar,
-  Sparkles,
-  GraduationCap,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Calendar, GraduationCap, Receipt, Search, Sparkles, Wallet } from 'lucide-react';
+import { useAdminData } from '../AdminDataContext';
 
-interface OverviewTabProps {
-  onNavigateTab: (tab: string) => void;
-}
+interface OverviewTabProps { onNavigateTab: (tab: string) => void }
+const money = (value: number) => `${value.toLocaleString('vi-VN')}đ`;
+const dayKey = (value: string) => new Date(value).toLocaleDateString('vi-VN');
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateTab }) => {
-  return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Tổng quan vận hành</h1>
-          <p className="text-xs text-stone-500 mt-1">
-            Bức tranh vận hành chuỗi spa và học viện · 01/10/2026 – 08/10/2026
-          </p>
-        </div>
-        <button
-          onClick={() => onNavigateTab('revenue_report')}
-          className="px-4 py-2.5 bg-[#8B4513] hover:bg-[#72380F] text-white text-xs font-semibold rounded-xl shadow-sm transition-all text-center self-start sm:self-auto"
-        >
-          Xem báo cáo doanh thu
-        </button>
-      </div>
+  const { data, loading, refresh } = useAdminData();
+  const [query, setQuery] = useState('');
+  const [branchId, setBranchId] = useState('all');
+  const paid = data.invoices.filter(item => item.status === 'paid');
+  const visibleBookings = data.bookings.filter(item => branchId === 'all' || item.branchId === branchId);
+  const visiblePlans = data.treatmentPlans.filter(item => branchId === 'all' || item.branch?.id === branchId);
+  const visibleInvoices = paid.filter(item => {
+    if (branchId === 'all') return true;
+    const branch = data.branches.find(value => value.id === branchId);
+    return !item.description || item.description.includes(branch?.name || '');
+  });
+  const revenue = visibleInvoices.reduce((sum, item) => sum + Number(item.finalAmount), 0);
+  const refunded = data.invoices.filter(item => item.status === 'refunded').reduce((sum, item) => sum + Number(item.finalAmount), 0);
+  const upcoming = visibleBookings.filter(item => item.status === 'pending' || item.status === 'confirmed');
+  const activePlans = visiblePlans.filter(item => item.status === 'active');
+  const remainingSessions = activePlans.reduce((sum, item) => sum + Number(item.remainingSessions || 0), 0);
+  const activeEnrollments = data.enrollments.filter(item => ['pending', 'confirmed'].includes(item.status));
+  const daily = useMemo(() => {
+    const values = new Map<string, number>();
+    visibleInvoices.forEach(item => { const key = dayKey(item.paidAt || item.createdAt); values.set(key, (values.get(key) || 0) + Number(item.finalAmount)); });
+    return [...values.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8);
+  }, [visibleInvoices]);
+  const maxRevenue = Math.max(1, ...daily.map(([, value]) => value));
+  const serviceRevenue = visibleInvoices.filter(item => item.bookingId).reduce((sum, item) => sum + Number(item.finalAmount), 0);
+  const courseRevenue = visibleInvoices.filter(item => item.enrollmentId).reduce((sum, item) => sum + Number(item.finalAmount), 0);
+  const treatmentRevenue = Math.max(0, revenue - serviceRevenue - courseRevenue);
+  const categories = [['Dịch vụ', serviceRevenue, '#E5D5C5'], ['Liệu trình', treatmentRevenue, '#8B4513'], ['Học phí', courseRevenue, '#C88A4B']] as const;
+  const searchResults = query.trim() ? [...data.bookings.filter(item => `${item.code} ${item.userName} ${item.serviceTitle}`.toLowerCase().includes(query.toLowerCase())), ...data.enrollments.filter(item => `${item.code} ${item.studentName} ${item.courseTitle}`.toLowerCase().includes(query.toLowerCase()))].slice(0, 6) : [];
 
-      {/* Filter Row */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white p-3 rounded-2xl border border-stone-200 shadow-sm">
-        <div className="md:col-span-6">
-          <input
-            type="text"
-            placeholder="Tìm khách hàng, lịch hẹn, lớp học..."
-            className="w-full px-3.5 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#8B4513]"
-          />
-        </div>
-        <div className="md:col-span-3 relative">
-          <select className="w-full appearance-none px-3.5 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#8B4513] text-stone-700 cursor-pointer">
-            <option>01/10/2026 – 08/10/2026</option>
-            <option>Tháng 10/2026</option>
-            <option>Hôm nay</option>
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-stone-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-        <div className="md:col-span-3 relative">
-          <select className="w-full appearance-none px-3.5 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#8B4513] text-stone-700 cursor-pointer">
-            <option>Tất cả chi nhánh</option>
-            <option>Chi nhánh mẫu 01 — Quận 3</option>
-            <option>Chi nhánh mẫu 02 — Cầu Giấy</option>
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-stone-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-      </div>
-
-      {/* 5 Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Card 1 */}
-        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm">
-          <div className="flex items-center justify-between text-stone-500 text-xs font-medium">
-            <span>Thực thu trong kỳ</span>
-            <Wallet className="w-4 h-4 text-[#8B4513]" />
-          </div>
-          <div className="text-xl font-bold text-stone-900 mt-2">8.550.000đ</div>
-          <div className="text-[11px] text-stone-400 mt-1">Chỉ 3 biên nhận đã hoàn tất</div>
-        </div>
-
-        {/* Card 2 */}
-        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm">
-          <div className="flex items-center justify-between text-stone-500 text-xs font-medium">
-            <span>Giao dịch đã thanh toán</span>
-            <Receipt className="w-4 h-4 text-[#8B4513]" />
-          </div>
-          <div className="text-xl font-bold text-stone-900 mt-2">3</div>
-          <div className="text-[11px] text-stone-400 mt-1">Hoàn tiền: 0đ</div>
-        </div>
-
-        {/* Card 3 */}
-        <div
-          onClick={() => onNavigateTab('staff_schedule')}
-          className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm hover:border-[#8B4513] transition-colors cursor-pointer"
-        >
-          <div className="flex items-center justify-between text-stone-500 text-xs font-medium">
-            <span>Lịch hẹn sắp tới</span>
-            <Calendar className="w-4 h-4 text-[#8B4513]" />
-          </div>
-          <div className="text-xl font-bold text-stone-900 mt-2">2</div>
-          <div className="text-[11px] text-stone-400 mt-1">Nguyễn Minh Anh · 1 chờ cọc</div>
-        </div>
-
-        {/* Card 4 */}
-        <div
-          onClick={() => onNavigateTab('treatments')}
-          className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm hover:border-[#8B4513] transition-colors cursor-pointer"
-        >
-          <div className="flex items-center justify-between text-stone-500 text-xs font-medium">
-            <span>Gói liệu trình đang dùng</span>
-            <Sparkles className="w-4 h-4 text-[#8B4513]" />
-          </div>
-          <div className="text-xl font-bold text-stone-900 mt-2">2</div>
-          <div className="text-[11px] text-stone-400 mt-1">Nguyễn Minh Anh · 11 buổi còn</div>
-        </div>
-
-        {/* Card 5 */}
-        <div
-          onClick={() => onNavigateTab('students')}
-          className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm hover:border-[#8B4513] transition-colors cursor-pointer"
-        >
-          <div className="flex items-center justify-between text-stone-500 text-xs font-medium">
-            <span>Khóa đã ghi danh</span>
-            <GraduationCap className="w-4 h-4 text-[#8B4513]" />
-          </div>
-          <div className="text-xl font-bold text-stone-900 mt-2">3</div>
-          <div className="text-[11px] text-stone-400 mt-1">Nguyễn Minh Anh · 1 đang học</div>
-        </div>
-      </div>
-
-      {/* Charts & Breakdown Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Daily Revenue Bar Chart (7 cols) */}
-        <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-stone-900">Thực thu theo ngày</h3>
-            <p className="text-[11px] text-stone-400 mt-0.5">
-              Đơn vị: VND · Đã thu theo ngày, không gồm khoản chờ thanh toán
-            </p>
-          </div>
-
-          <div className="mt-8 mb-4 h-56 flex items-end justify-between gap-3 px-2">
-            {/* 01/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] font-bold text-[#8B4513] mb-1">4.500.000đ</span>
-              <div className="w-full bg-[#8B4513] rounded-t-lg h-44"></div>
-              <span className="text-[10px] text-stone-400 mt-2">01/10/2026</span>
-            </div>
-            {/* 02/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] text-stone-400 mb-1">0đ</span>
-              <div className="w-full bg-stone-100 rounded-t-lg h-1"></div>
-              <span className="text-[10px] text-stone-400 mt-2">02/10/2026</span>
-            </div>
-            {/* 03/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] text-stone-400 mb-1">0đ</span>
-              <div className="w-full bg-stone-100 rounded-t-lg h-1"></div>
-              <span className="text-[10px] text-stone-400 mt-2">03/10/2026</span>
-            </div>
-            {/* 04/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] text-stone-400 mb-1">0đ</span>
-              <div className="w-full bg-stone-100 rounded-t-lg h-1"></div>
-              <span className="text-[10px] text-stone-400 mt-2">04/10/2026</span>
-            </div>
-            {/* 05/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] font-bold text-[#C88A4B] mb-1">3.600.000đ</span>
-              <div className="w-full bg-[#C88A4B] rounded-t-lg h-36"></div>
-              <span className="text-[10px] text-stone-400 mt-2">05/10/2026</span>
-            </div>
-            {/* 06/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] text-stone-400 mb-1">0đ</span>
-              <div className="w-full bg-stone-100 rounded-t-lg h-1"></div>
-              <span className="text-[10px] text-stone-400 mt-2">06/10/2026</span>
-            </div>
-            {/* 07/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] text-stone-400 mb-1">0đ</span>
-              <div className="w-full bg-stone-100 rounded-t-lg h-1"></div>
-              <span className="text-[10px] text-stone-400 mt-2">07/10/2026</span>
-            </div>
-            {/* 08/10 */}
-            <div className="flex-1 flex flex-col items-center">
-              <span className="text-[10px] font-bold text-[#C88A4B] mb-1">450.000đ</span>
-              <div className="w-full bg-[#E5D5C5] rounded-t-lg h-10"></div>
-              <span className="text-[10px] text-stone-400 mt-2">08/10/2026</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Revenue Composition (4 cols) */}
-        <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-stone-900">Cơ cấu khoản đã thu</h3>
-            <div className="mt-4 space-y-4">
-              <div>
-                <div className="flex justify-between text-xs font-semibold text-stone-700 mb-1">
-                  <span>Dịch vụ</span>
-                  <span>450.000đ · 5,26%</span>
-                </div>
-                <div className="w-full bg-stone-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-[#E5D5C5] h-full rounded-full" style={{ width: '5.26%' }}></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold text-stone-700 mb-1">
-                  <span>Liệu trình</span>
-                  <span>3.600.000đ · 42,11%</span>
-                </div>
-                <div className="w-full bg-stone-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-[#8B4513] h-full rounded-full" style={{ width: '42.11%' }}></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold text-stone-700 mb-1">
-                  <span>Học phí</span>
-                  <span>4.500.000đ · 52,63%</span>
-                </div>
-                <div className="w-full bg-stone-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-[#C88A4B] h-full rounded-full" style={{ width: '52.63%' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-stone-100 text-[11px] text-stone-500 leading-relaxed">
-            Dịch vụ & liệu trình: <strong className="text-stone-700">4.050.000đ</strong> · Học viện: <strong className="text-stone-700">4.500.000đ</strong>.
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Row: Branch Reconciliation + Action Needed */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Branch Reconciliation Table (8 cols) */}
-        <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-stone-900">Đối chiếu chi nhánh</h3>
-            <span className="text-[11px] font-semibold text-[#8B4513] bg-[#F5EBE1] px-2.5 py-0.5 rounded-full">
-              2 bản ghi mẫu
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#F5EBE1] text-stone-700 font-semibold">
-                <tr>
-                  <th className="py-2.5 px-3 rounded-l-lg">Chi nhánh mẫu</th>
-                  <th className="py-2.5 px-3">Biên nhận đã thu</th>
-                  <th className="py-2.5 px-3 rounded-r-lg">Thực thu</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                <tr className="hover:bg-stone-50">
-                  <td className="py-3 px-3 font-medium text-stone-900">Chi nhánh mẫu 01 — Quận 3</td>
-                  <td className="py-3 px-3 text-stone-600">3</td>
-                  <td className="py-3 px-3 font-semibold text-[#8B4513]">8.550.000đ</td>
-                </tr>
-                <tr className="hover:bg-stone-50">
-                  <td className="py-3 px-3 font-medium text-stone-900">Chi nhánh mẫu 02 — Cầu Giấy</td>
-                  <td className="py-3 px-3 text-stone-600">0</td>
-                  <td className="py-3 px-3 text-stone-500">0đ</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 mt-2 border-t border-stone-100 text-[11px] text-stone-400">
-            <span>Hiển thị 2 / 2 bản ghi minh họa</span>
-            <div className="flex items-center gap-1">
-              <button className="p-1 rounded hover:bg-stone-100"><ChevronLeft className="w-3.5 h-3.5" /></button>
-              <span className="px-2 py-0.5 rounded bg-[#F5EBE1] text-[#8B4513] font-bold">1</span>
-              <button className="p-1 rounded hover:bg-stone-100"><ChevronRight className="w-3.5 h-3.5" /></button>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Needed Card (4 cols) */}
-        <div className="lg:col-span-4 bg-[#F5EBE1] p-5 rounded-2xl border border-[#E5D5C5] shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-stone-900">Cần xử lý</h3>
-              <span className="text-[11px] font-semibold text-stone-600">
-                Cần thu ngay · 2.150.000đ
-              </span>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <div className="bg-white/80 p-3 rounded-xl border border-[#E5D5C5]">
-                <div className="text-xs font-bold text-stone-900">
-                  1 khoản cọc dịch vụ chờ thanh toán
-                </div>
-                <div className="text-[11px] text-stone-600 mt-1">
-                  SPA-DEMO-000128 · 150.000đ chưa thu. Giữ chỗ minh họa đến hết vùng đệm.
-                </div>
-              </div>
-
-              <div className="bg-white/80 p-3 rounded-xl border border-[#E5D5C5]">
-                <div className="text-xs font-bold text-stone-900">
-                  1 hồ sơ tuyển sinh chờ cọc
-                </div>
-                <div className="text-[11px] text-stone-600 mt-1">
-                  HV-DEMO-000256 · 2.000.000đ chưa thu. Không ghi nhận vào doanh thu.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 mt-4 border-t border-[#E5D5C5] flex justify-between items-center text-xs">
-            <span className="text-stone-600">Số dư trả sau</span>
-            <span className="font-bold text-stone-900">7.300.000đ</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-bold">Tổng quan vận hành</h1><p className="mt-1 text-xs text-stone-500">Dữ liệu PostgreSQL cập nhật lúc {data.generatedAt ? new Date(data.generatedAt).toLocaleString('vi-VN') : '--'}</p></div><div className="flex gap-2"><button onClick={refresh} className="rounded-lg border bg-white px-4 py-2.5 text-xs font-semibold">Làm mới dữ liệu</button><button onClick={()=>onNavigateTab('revenue_report')} className="rounded-lg bg-[#8B4513] px-4 py-2.5 text-xs font-semibold text-white">Xem báo cáo doanh thu</button></div></div>
+    <div className="grid gap-3 rounded-lg border bg-white p-3 md:grid-cols-[1fr_280px]"><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-stone-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Tìm khách hàng, lịch hẹn, khóa học..." className="h-10 w-full rounded-lg border bg-stone-50 pl-9 pr-3 text-xs outline-none"/>{searchResults.length>0&&<div className="absolute z-20 mt-1 w-full rounded-lg border bg-white p-2 shadow-xl">{searchResults.map((item:any)=><button key={item.id} onClick={()=>onNavigateTab(item.serviceTitle?'appointments':'students')} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-stone-50"><strong>{item.code}</strong> · {item.userName||item.studentName} · {item.serviceTitle||item.courseTitle}</button>)}</div>}</div><select value={branchId} onChange={e=>setBranchId(e.target.value)} className="h-10 rounded-lg border bg-stone-50 px-3 text-xs"><option value="all">Tất cả chi nhánh</option>{data.branches.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{[
+      ['Thực thu', money(revenue), `${visibleInvoices.length} hóa đơn đã thu`, Wallet, 'cashier'],
+      ['Giao dịch đã thanh toán', visibleInvoices.length, `Hoàn tiền: ${money(refunded)}`, Receipt, 'cashier'],
+      ['Lịch hẹn đang xử lý', upcoming.length, `${visibleBookings.length} lịch trong hệ thống`, Calendar, 'appointments'],
+      ['Liệu trình đang dùng', activePlans.length, `${remainingSessions} buổi còn lại`, Sparkles, 'treatments'],
+      ['Khóa đã ghi danh', data.enrollments.length, `${activeEnrollments.length} đang học/chờ xác nhận`, GraduationCap, 'students'],
+    ].map(([label,value,note,Icon,tab]:any)=><button key={label} onClick={()=>onNavigateTab(tab)} className="rounded-lg border bg-white p-4 text-left shadow-sm hover:border-[#8B4513]"><div className="flex justify-between text-xs text-stone-500"><span>{label}</span><Icon className="h-4 w-4 text-[#8B4513]"/></div><div className="mt-2 text-xl font-bold">{value}</div><div className="mt-1 text-[11px] text-stone-400">{note}</div></button>)}</div>
+    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]"><section className="rounded-lg border bg-white p-5"><h2 className="text-sm font-bold">Thực thu theo ngày</h2><p className="mt-1 text-[11px] text-stone-400">Tính từ hóa đơn có trạng thái đã thanh toán</p><div className="mt-8 flex h-56 items-end gap-3">{daily.map(([date,value])=><div key={date} className="flex h-full min-w-0 flex-1 flex-col justify-end text-center"><span className="mb-1 truncate text-[10px] font-bold text-[#8B4513]">{money(value)}</span><div className="min-h-1 rounded-t bg-[#8B4513]" style={{height:`${Math.max(4,value/maxRevenue*170)}px`}}/><span className="mt-2 text-[10px] text-stone-400">{date}</span></div>)}{!daily.length&&<div className="m-auto text-xs text-stone-400">Chưa có giao dịch đã thanh toán.</div>}</div></section><section className="rounded-lg border bg-white p-5"><h2 className="text-sm font-bold">Cơ cấu khoản đã thu</h2><div className="mt-5 space-y-5">{categories.map(([label,value,color])=>{const percent=revenue?value/revenue*100:0;return <div key={label}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><strong>{money(value)} · {percent.toFixed(1)}%</strong></div><div className="h-2.5 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full" style={{width:`${percent}%`,backgroundColor:color}}/></div></div>})}</div></section></div>
+    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]"><section className="overflow-hidden rounded-lg border bg-white"><div className="border-b px-5 py-4"><h2 className="text-sm font-bold">Đối chiếu chi nhánh</h2></div><table className="w-full text-left text-xs"><thead className="bg-[#F5EBE1]"><tr><th className="px-4 py-3">Chi nhánh</th><th className="px-4 py-3">Lịch hẹn</th><th className="px-4 py-3">Liệu trình</th><th className="px-4 py-3">Thực thu nhận diện được</th></tr></thead><tbody className="divide-y">{data.branches.map(branch=>{const bookings=data.bookings.filter(item=>item.branchId===branch.id);const plans=data.treatmentPlans.filter(item=>item.branch?.id===branch.id);const branchRevenue=visibleInvoices.filter(item=>item.description?.includes(branch.name)).reduce((sum,item)=>sum+Number(item.finalAmount),0);return <tr key={branch.id}><td className="px-4 py-3 font-semibold">{branch.name}<div className="mt-1 font-normal text-stone-400">{branch.address}</div></td><td className="px-4 py-3">{bookings.length}</td><td className="px-4 py-3">{plans.length}</td><td className="px-4 py-3 font-bold text-[#8B4513]">{money(branchRevenue)}</td></tr>})}</tbody></table></section><section className="rounded-lg border border-[#E5D5C5] bg-[#F5EBE1] p-5"><h2 className="text-sm font-bold">Cần xử lý</h2><div className="mt-4 space-y-3"><button onClick={()=>onNavigateTab('appointments')} className="w-full rounded-lg border bg-white p-3 text-left text-xs"><strong>{upcoming.length} lịch hẹn đang chờ/đã xác nhận</strong><p className="mt-1 text-stone-500">Mở danh sách để kiểm tra lịch và chuyên viên.</p></button><button onClick={()=>onNavigateTab('cashier')} className="w-full rounded-lg border bg-white p-3 text-left text-xs"><strong>{Math.max(0, data.bookings.length-data.invoices.filter(item=>item.bookingId).length)} lịch chưa có hóa đơn</strong><p className="mt-1 text-stone-500">Mở thu ngân để ghi nhận thanh toán.</p></button></div></section></div>
+    {loading&&<div className="fixed bottom-5 right-5 rounded-lg bg-stone-900 px-4 py-3 text-xs text-white">Đang đồng bộ dữ liệu...</div>}
+  </div>;
 };
