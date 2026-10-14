@@ -156,8 +156,12 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
   // Vouchers state & sub-tab
   const [voucherTab, setVoucherTab] = useState<'available' | 'used' | 'expired'>('available');
   const [voucherInput, setVoucherInput] = useState('');
-  const [vouchersList, setVouchersList] = useState<Voucher[]>(vouchers);
-  useEffect(() => setVouchersList(vouchers), [vouchers]);
+  const normalizeVouchers = (items: Voucher[]) => items.map((item) => ({
+    ...item,
+    status: item.status || (new Date(item.expiryDate).getTime() < Date.now() ? 'expired' as const : 'available' as const),
+  }));
+  const [vouchersList, setVouchersList] = useState<Voucher[]>(normalizeVouchers(vouchers));
+  useEffect(() => setVouchersList(normalizeVouchers(vouchers)), [vouchers]);
 
   // Invoice detail modal state
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -996,8 +1000,8 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
           <div className="flex border-b border-[#EADECF] bg-white px-4 shrink-0">
             {[
               { id: 'available', label: `Khả dụng (${vouchersList.filter(v => v.status === 'available').length})` },
-              { id: 'used', label: 'Đã dùng (1)' },
-              { id: 'expired', label: 'Hết hạn (0)' },
+              { id: 'used', label: `Đã dùng (${vouchersList.filter(v => v.status === 'used').length})` },
+              { id: 'expired', label: `Hết hạn (${vouchersList.filter(v => v.status === 'expired').length})` },
             ].map((tab) => (
               <button
                 key={tab.id}
