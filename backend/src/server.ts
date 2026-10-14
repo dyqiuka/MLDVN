@@ -62,6 +62,36 @@ const serializeVoucher = (item: any) => {
   };
 };
 
+const serializeTreatmentPlan = (plan: any) => {
+  const sessions = plan.sessions ?? [];
+  const completed = sessions.filter((session: any) => session.status === 'COMPLETED').length;
+  const scheduled = sessions.filter((session: any) => session.status === 'SCHEDULED').length;
+  return {
+    id: plan.id,
+    name: plan.name,
+    status: plan.status.toLowerCase(),
+    totalSessions: plan.totalSessions,
+    usedSessions: completed,
+    scheduledSessions: scheduled,
+    remainingSessions: Math.max(0, plan.totalSessions - completed),
+    progressPercent: plan.totalSessions ? Math.round(completed * 100 / plan.totalSessions) : 0,
+    purchaseDate: plan.purchasedAt.toISOString(),
+    expiryDate: plan.expiresAt.toISOString(),
+    service: plan.service ? serializeService(plan.service) : undefined,
+    branch: plan.branch,
+    sessions: sessions.map((session: any) => ({
+      id: session.id,
+      sessionNumber: session.sessionNumber,
+      status: session.status.toLowerCase(),
+      scheduledAt: session.scheduledAt?.toISOString() ?? null,
+      completedAt: session.completedAt?.toISOString() ?? null,
+      specialistName: session.specialistName ?? '',
+      title: session.title,
+      notes: session.notes ?? '',
+    })),
+  };
+};
+
 const serializeUser = (user: any) => ({
   id: user.id,
   name: user.name,
@@ -772,19 +802,61 @@ app.get('/api/records/:id', (req: Request, res: Response) => {
 // ==========================================
 app.get('/api/membership', async (_req: Request, res: Response) => {
   try {
-    const [user, userVouchers] = await Promise.all([
+    const [user, userVouchers, upcomingBookings, activeEnrollments, treatmentPlans] = await Promise.all([
       prisma.user.findUnique({ where: { id: 'usr_001' } }),
       prisma.userVoucher.findMany({
         where: { userId: 'usr_001', voucher: { isActive: true } },
         include: { voucher: true },
         orderBy: { claimedAt: 'desc' },
       }),
+      prisma.booking.count({ where: { userId: 'usr_001', status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] }, scheduledAt: { gte: new Date() } } }),
+      prisma.courseEnrollment.count({ where: { userId: 'usr_001', status: { in: [EnrollmentStatus.PENDING, EnrollmentStatus.CONFIRMED] } } }),
+      prisma.treatmentPlan.findMany({ where: { userId: 'usr_001', status: 'ACTIVE' }, include: { sessions: true } }),
     ]);
     if (!user) return res.status(404).json({ error: 'Không tìm thấy hội viên' });
-    res.json({ user: { ...serializeUser(user), nextTierPoints: 5000 }, vouchers: userVouchers.map(serializeVoucher) });
+    const remainingTreatmentSessions = treatmentPlans.reduce((sum, plan) => {
+      const completed = plan.sessions.filter((session) => session.status === 'COMPLETED').length;
+      return sum + Math.max(0, plan.totalSessions - completed);
+    }, 0);
+    res.json({
+      user: { ...serializeUser(user), nextTierPoints: 5000 },
+      vouchers: userVouchers.map(serializeVoucher),
+      summary: { upcomingBookings, remainingTreatmentSessions, activeCourses: activeEnrollments },
+    });
   } catch (error) {
     console.error('[API] GET /membership failed', error);
     res.status(500).json({ error: 'Không thể tải thông tin hội viên' });
+  }
+});
+
+app.get('/api/treatment-plans', async (_req: Request, res: Response) => {
+  try {
+    const plans = await prisma.treatmentPlan.findMany({
+      where: { userId: 'usr_001' },
+      include: { service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } },
+      orderBy: { purchasedAt: 'desc' },
+    });
+    res.json({ treatmentPlans: plans.map(serializeTreatmentPlan) });
+  } catch (error) {
+    console.error('[API] GET /treatment-plans failed', error);
+    res.status(500).json({ error: 'Không thể tải gói liệu trình' });
+  }
+});
+
+app.patch('/api/admin/treatment-sessions/:id/complete', async (req: Request, res: Response) => {
+  try {
+    const session = await prisma.treatmentSession.update({
+      where: { id: req.params.id },
+      data: { status: 'COMPLETED', completedAt: new Date(), notes: req.body.notes || undefined },
+      include: { plan: { include: { service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } } } },
+    });
+    await prisma.notification.create({
+      data: { userId: session.plan.userId, type: 'treatment', entityId: session.planId, title: 'Cập nhật liệu trình', message: `Buổi ${session.sessionNumber} đã hoàn thành.` },
+    });
+    res.json({ treatmentPlan: serializeTreatmentPlan(session.plan) });
+  } catch (error) {
+    console.error('[API] complete treatment session failed', error);
+    res.status(404).json({ error: 'Không tìm thấy buổi liệu trình' });
   }
 });
 
@@ -933,7 +1005,7 @@ app.get('/api/admin/students', (req: Request, res: Response) => {
 
 app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
   try {
-    const [branches, users, services, specialists, bookings, courses, enrollments, notifications] = await Promise.all([
+    const [branches, users, services, specialists, bookings, courses, enrollments, notifications, treatmentPlans] = await Promise.all([
       prisma.branch.findMany({ include: { services: { include: { service: true } }, staff: true }, orderBy: { createdAt: 'asc' } }),
       prisma.user.findMany({ include: { bookings: true, enrollments: true }, orderBy: { createdAt: 'desc' } }),
       prisma.service.findMany({ include: { branches: true, specialists: true }, orderBy: { createdAt: 'asc' } }),
@@ -942,6 +1014,7 @@ app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
       prisma.course.findMany({ include: { enrollments: true }, orderBy: { createdAt: 'asc' } }),
       prisma.courseEnrollment.findMany({ include: { course: true, user: true }, orderBy: { createdAt: 'desc' } }),
       prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+      prisma.treatmentPlan.findMany({ include: { user: true, service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } }, orderBy: { purchasedAt: 'desc' } }),
     ]);
     res.json({
       generatedAt: new Date().toISOString(),
@@ -953,6 +1026,7 @@ app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
       courses: courses.map((course) => ({ ...course, price: Number(course.price), deposit: Number(course.deposit) })),
       enrollments: enrollments.map(serializeEnrollment),
       notifications,
+      treatmentPlans: treatmentPlans.map(serializeTreatmentPlan),
     });
   } catch (error) {
     console.error('[API] GET /admin/bootstrap failed', error);

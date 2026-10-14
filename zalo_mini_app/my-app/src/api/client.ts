@@ -144,6 +144,16 @@ export const apiClient = {
     }
   },
 
+  async getTreatmentPlans() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/treatment-plans`);
+      if (!res.ok) throw new Error('API error');
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
   async claimVoucher(code: string) {
     try {
       const res = await fetch(`${API_BASE_URL}/vouchers/claim`, {

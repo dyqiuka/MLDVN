@@ -39,6 +39,19 @@ enum DiscountType {
   PERCENT
 }
 
+enum TreatmentPlanStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum TreatmentSessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id        String    @id @default(cuid())
   zaloId    String?   @unique
@@ -63,6 +76,7 @@ model User {
   enrollments CourseEnrollment[]
   notifications Notification[]
   vouchers UserVoucher[]
+  treatmentPlans TreatmentPlan[]
 }
 
 model Voucher {
@@ -109,6 +123,7 @@ model Branch {
   services  BranchService[]
   staff     Specialist[]
   bookings  Booking[]
+  treatmentPlans TreatmentPlan[]
 }
 
 model Service {
@@ -131,6 +146,45 @@ model Service {
   branches        BranchService[]
   specialists     SpecialistService[]
   bookings        Booking[]
+  treatmentPlans  TreatmentPlan[]
+}
+
+model TreatmentPlan {
+  id            String              @id @default(cuid())
+  userId        String
+  serviceId     String
+  branchId      String
+  name          String
+  totalSessions Int
+  status        TreatmentPlanStatus @default(ACTIVE)
+  purchasedAt   DateTime            @default(now())
+  expiresAt     DateTime
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  user          User                @relation(fields: [userId], references: [id])
+  service       Service             @relation(fields: [serviceId], references: [id])
+  branch        Branch              @relation(fields: [branchId], references: [id])
+  sessions      TreatmentSession[]
+
+  @@index([userId, status])
+}
+
+model TreatmentSession {
+  id           String                 @id @default(cuid())
+  planId       String
+  sessionNumber Int
+  status       TreatmentSessionStatus @default(SCHEDULED)
+  scheduledAt  DateTime?
+  completedAt  DateTime?
+  specialistName String?
+  title        String
+  notes        String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  plan         TreatmentPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, sessionNumber])
+  @@index([planId, status])
 }
 
 model BranchService {

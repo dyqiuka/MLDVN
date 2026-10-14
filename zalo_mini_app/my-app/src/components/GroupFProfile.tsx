@@ -32,6 +32,7 @@ interface GroupFProfileProps {
   onOpenOnboarding: () => void;
   vouchers: Voucher[];
   onVouchersUpdated: (vouchers: Voucher[]) => void;
+  summary: { upcomingBookings: number; remainingTreatmentSessions: number; activeCourses: number };
 }
 
 export const GroupFProfile: React.FC<GroupFProfileProps> = ({
@@ -44,6 +45,7 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
   onOpenOnboarding,
   vouchers,
   onVouchersUpdated,
+  summary,
 }) => {
   // Modal states for F02 - F08 screens
   const [activeModal, setActiveModal] = useState<
@@ -297,9 +299,9 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
 
       <div className="grid grid-cols-3 gap-2">
         {[
-          { value: '2', label: 'Lịch hẹn', sub: 'sắp tới', action: onOpenAppointments },
-          { value: '11', label: 'Liệu trình', sub: 'buổi còn lại', action: onOpenPackages },
-          { value: '1', label: 'Khóa học', sub: 'đang học', action: onOpenAcademy },
+          { value: String(summary.upcomingBookings), label: 'Lịch hẹn', sub: 'sắp tới', action: onOpenAppointments },
+          { value: String(summary.remainingTreatmentSessions), label: 'Liệu trình', sub: 'buổi còn lại', action: onOpenPackages },
+          { value: String(summary.activeCourses), label: 'Khóa học', sub: 'đang học', action: onOpenAcademy },
         ].map((item) => (
           <button key={item.label} onClick={item.action} className="min-h-[78px] rounded-[10px] bg-white p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
             <span className="text-[17px] font-bold text-[#A65317]">{item.value}</span>

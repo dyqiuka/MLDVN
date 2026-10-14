@@ -69,6 +69,8 @@ function MasterHomePage() {
   const [user, setUser] = useState<User>(database.users[0]);
   const [vouchers, setVouchers] = useState<Voucher[]>(database.vouchers);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [memberSummary, setMemberSummary] = useState({ upcomingBookings: 0, remainingTreatmentSessions: 0, activeCourses: 0 });
+  const [treatmentPlans, setTreatmentPlans] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Active Flow Modals (Starts at Group A Onboarding on initial launch)
@@ -97,7 +99,7 @@ function MasterHomePage() {
   // Fetch real data from Backend on mount
   useEffect(() => {
     async function loadBackendData() {
-      const [srvData, docData, brData, crsData, recData, membData, bkData, notifData] = await Promise.all([
+      const [srvData, docData, brData, crsData, recData, membData, bkData, notifData, treatmentData] = await Promise.all([
         apiClient.getServices(),
         apiClient.getDoctors(),
         apiClient.getBranches(),
@@ -106,6 +108,7 @@ function MasterHomePage() {
         apiClient.getMembership(),
         apiClient.getBookings(),
         apiClient.getNotifications(),
+        apiClient.getTreatmentPlans(),
       ]);
 
       if (srvData?.services) setServices(srvData.services);
@@ -115,8 +118,10 @@ function MasterHomePage() {
       if (recData?.records) setRecords(recData.records);
       if (membData?.vouchers) setVouchers(membData.vouchers);
       if (membData?.user) setUser((prev) => ({ ...prev, ...membData.user }));
+      if (membData?.summary) setMemberSummary(membData.summary);
       if (bkData?.bookings) setBookings(bkData.bookings);
       if (notifData?.notifications) setNotifications(notifData.notifications);
+      if (treatmentData?.treatmentPlans) setTreatmentPlans(treatmentData.treatmentPlans);
     }
 
     loadBackendData();
@@ -130,6 +135,7 @@ function MasterHomePage() {
     setBookings((prev) => [newBooking, ...prev]);
     setETicketBooking(newBooking);
     apiClient.getNotifications().then((response) => response?.notifications && setNotifications(response.notifications));
+    apiClient.getMembership().then((response) => response?.summary && setMemberSummary(response.summary));
   };
 
   // Find latest upcoming confirmed booking
@@ -395,6 +401,7 @@ function MasterHomePage() {
               }}
               vouchers={vouchers}
               onVouchersUpdated={setVouchers}
+              summary={memberSummary}
             />
           </Box>
         )}
@@ -586,6 +593,7 @@ function MasterHomePage() {
             <GroupDTreatment
               key={treatmentInitialTab}
               initialTab={treatmentInitialTab}
+              treatmentPlans={treatmentPlans}
               onClose={() => setIsTreatmentOpen(false)}
               onOpenBooking={() => {
                 setIsTreatmentOpen(false);

@@ -245,6 +245,30 @@ async function main() {
     });
   }
 
+  await prisma.treatmentPlan.upsert({
+    where: { id: 'plan_massage_10' },
+    update: { status: 'ACTIVE', totalSessions: 10, expiresAt: new Date('2026-12-31T16:59:59.000Z') },
+    create: {
+      id: 'plan_massage_10', userId: 'usr_001', serviceId: 'srv_01', branchId: 'br_01',
+      name: 'Gói Massage Thư Giãn 10 Buổi', totalSessions: 10, status: 'ACTIVE',
+      purchasedAt: new Date('2026-09-01T00:00:00.000Z'), expiresAt: new Date('2026-12-31T16:59:59.000Z'),
+    },
+  });
+
+  const treatmentSessions = [
+    ['treat_01', 1, '2026-09-05T02:00:00.000Z', 'Khởi động & Thư giãn cơ bản', 'Trần Minh Phương'],
+    ['treat_02', 2, '2026-09-15T02:00:00.000Z', 'Massage trị liệu vùng vai gáy', 'Trần Minh Phương'],
+    ['treat_03', 3, '2026-09-28T02:00:00.000Z', 'Dẫn lưu bạch huyết vùng lưng', 'Nguyễn Thu Hà'],
+    ['treat_04', 4, '2026-10-08T02:00:00.000Z', 'Massage thư giãn toàn thân', 'Trần Minh Phương'],
+  ] as const;
+  for (const [id, sessionNumber, completedAt, title, specialistName] of treatmentSessions) {
+    await prisma.treatmentSession.upsert({
+      where: { id },
+      update: { status: 'COMPLETED', completedAt: new Date(completedAt), title, specialistName },
+      create: { id, planId: 'plan_massage_10', sessionNumber, status: 'COMPLETED', completedAt: new Date(completedAt), title, specialistName },
+    });
+  }
+
   const [users, branches, services, specialists, bookings, courses] = await Promise.all([
     prisma.user.count(),
     prisma.branch.count(),

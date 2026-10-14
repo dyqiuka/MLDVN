@@ -10,10 +10,11 @@ type AdminData = {
   courses: any[];
   enrollments: any[];
   notifications: any[];
+  treatmentPlans: any[];
   generatedAt?: string;
 };
 
-const emptyData: AdminData = { branches: [], users: [], services: [], specialists: [], bookings: [], courses: [], enrollments: [], notifications: [] };
+const emptyData: AdminData = { branches: [], users: [], services: [], specialists: [], bookings: [], courses: [], enrollments: [], notifications: [], treatmentPlans: [] };
 const AdminDataContext = createContext({ data: emptyData, loading: true, error: '', refresh: async () => {} });
 
 export const AdminDataProvider: React.FC<React.PropsWithChildren> = ({ children }) => {

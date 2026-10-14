@@ -21,9 +21,10 @@ interface GroupDTreatmentProps {
   onClose: () => void;
   onOpenConsultation?: () => void;
   initialTab?: 'packages' | 'journal' | 'care_guide' | 'support' | 'notifications';
+  treatmentPlans: any[];
 }
 
-export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking, onClose, initialTab = 'packages' }) => {
+export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking, onClose, initialTab = 'packages', treatmentPlans }) => {
   const [activeTab, setActiveTab] = useState<'packages' | 'journal' | 'care_guide' | 'support' | 'notifications'>(initialTab);
   const [packageTab, setPackageTab] = useState<'active' | 'completed' | 'expired'>('active');
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null);
@@ -100,24 +101,22 @@ export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking,
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   };
 
-  // Mock Package Data (Figma D01)
-  const myPackage = {
-    id: 'pkg_1',
-    name: 'Gói Massage Thư Giãn 10 Buổi',
-    branch: 'Chi nhánh mẫu 01 — Quận 3',
-    totalSessions: 10,
-    usedSessions: 4,
-    remainingSessions: 6,
-    progressPercent: 40,
-    expiryDate: '31/12/2026',
-    purchaseDate: '01/09/2026',
-    sessionsHistory: [
-      { session: 'Buổi 01', date: '05/09/2026', title: 'Khởi động & Thư giãn cơ bản', specialist: 'Trần Minh Phương', completed: true },
-      { session: 'Buổi 02', date: '15/09/2026', title: 'Massage trị liệu vùng vai gáy', specialist: 'Trần Minh Phương', completed: true },
-      { session: 'Buổi 03', date: '28/09/2026', title: 'Dẫn lưu bạch huyết vùng lưng', specialist: 'Nguyễn Thu Hà', completed: true },
-      { session: 'Buổi 04', date: '08/10/2026', title: 'Massage thư giãn toàn thân', specialist: 'Trần Minh Phương', completed: true },
-      { session: 'Buổi 05', date: '15/10/2026 (Dự kiến)', title: 'Massage chuyên sâu phục hồi', specialist: 'Trần Minh Phương', completed: false },
-    ],
+  const activePlans = treatmentPlans.filter((plan) => plan.status === 'active');
+  const myPackage = activePlans[0] ? {
+    ...activePlans[0],
+    branch: activePlans[0].branch?.name || '',
+    expiryDate: new Date(activePlans[0].expiryDate).toLocaleDateString('vi-VN'),
+    purchaseDate: new Date(activePlans[0].purchaseDate).toLocaleDateString('vi-VN'),
+    sessionsHistory: activePlans[0].sessions.map((session: any) => ({
+      session: `Buổi ${String(session.sessionNumber).padStart(2, '0')}`,
+      date: new Date(session.completedAt || session.scheduledAt || Date.now()).toLocaleDateString('vi-VN'),
+      title: session.title,
+      specialist: session.specialistName,
+      completed: session.status === 'completed',
+    })),
+  } : {
+    id: '', name: 'Chưa có gói liệu trình', branch: '', totalSessions: 0, usedSessions: 0,
+    remainingSessions: 0, progressPercent: 0, expiryDate: '--', purchaseDate: '--', sessionsHistory: [],
   };
 
   return (
@@ -168,7 +167,7 @@ export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking,
                   <span className="text-[10px] text-[#A65317]">Hội viên Vàng · Ví dụ</span>
                 </div>
                 <p className="text-[11px] text-[#7A685D] mt-0.5">
-                  2 gói đang dùng • 11 buổi còn lại • 7 đã dùng
+                  {activePlans.length} gói đang dùng • {activePlans.reduce((sum, plan) => sum + plan.remainingSessions, 0)} buổi còn lại • {activePlans.reduce((sum, plan) => sum + plan.usedSessions, 0)} đã dùng
                 </p>
               </div>
             </div>
@@ -203,7 +202,7 @@ export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking,
                   className="w-full h-full object-cover"
                 />
                 <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-xs text-[10px] font-bold text-[#98501B] shadow-xs">
-                  ● Đang sử dụng · Gói minh họa
+                  ● Đang sử dụng
                 </span>
               </div>
 
@@ -240,7 +239,7 @@ export const GroupDTreatment: React.FC<GroupDTreatmentProps> = ({ onOpenBooking,
                     style={{ width: `${myPackage.progressPercent}%` }}
                   />
                 </div>
-                <p className="text-[10px] text-[#A09085]">Hạn sử dụng: {myPackage.expiryDate} • Minh họa</p>
+                <p className="text-[10px] text-[#A09085]">Hạn sử dụng: {myPackage.expiryDate}</p>
               </div>
 
               {/* Action Buttons */}
