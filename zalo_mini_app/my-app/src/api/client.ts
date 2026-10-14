@@ -1,4 +1,4 @@
-import { authorize, getAccessToken, getUserInfo } from 'zmp-sdk';
+import { getAccessToken, getUserInfo } from 'zmp-sdk';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://mld-api.onrender.com/api').replace(/\/$/, '');
 const SESSION_KEY = 'mld_session_token';
@@ -16,9 +16,13 @@ const responseJson = async (res: Response) => {
 export const apiClient = {
   async loginWithZalo(requestProfilePermission = false) {
     try {
-      if (requestProfilePermission) await authorize({ scopes: ['scope.userInfo'] });
+      // This API owns the user-info consent dialog. Calling authorize first can
+      // create two permission requests during the same button interaction.
+      const profile = await getUserInfo({
+        autoRequestPermission: requestProfilePermission,
+        avatarType: 'large',
+      });
       const accessToken = await getAccessToken();
-      const profile = await getUserInfo({ autoRequestPermission: requestProfilePermission, avatarType: 'large' }).catch(() => null);
       const res = await fetch(`${API_BASE_URL}/auth/zalo`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken, userInfo: profile?.userInfo }),
@@ -28,7 +32,9 @@ export const apiClient = {
       return data;
     } catch (error) {
       console.error('[AUTH] Zalo login failed', error);
-      return { error: error instanceof Error ? error.message : 'Không thể kết nối tài khoản Zalo' };
+      const zaloError = error as { code?: number | string; message?: string };
+      const code = zaloError?.code !== undefined ? ` (mã ${zaloError.code})` : '';
+      return { error: `${zaloError?.message || 'Không thể kết nối tài khoản Zalo'}${code}` };
     }
   },
 
