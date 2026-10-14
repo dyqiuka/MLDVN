@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MedicalService, Doctor, Branch, Booking } from '../../../../backend/src/data/database';
 import { apiClient } from '../api/client';
 import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ClockIcon, SearchIcon } from '@/components/Icons';
@@ -53,18 +53,44 @@ export const GroupCBooking: React.FC<GroupCBookingProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'cash'>('bank');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherDiscount, setVoucherDiscount] = useState(0);
+  const [voucherMessage, setVoucherMessage] = useState('');
 
   const dayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const morningSlots = ['09:00 - 10:00', '10:00 - 11:00', '11:00 - 12:00'];
   const afternoonSlots = ['14:00 - 15:00', '15:00 - 16:00', '16:00 - 17:00'];
   const total = selectedService?.price || 0;
+  const discountedTotal = Math.max(0, total - voucherDiscount);
   const deposit = 150000;
-  const payable = paymentAmount === 'deposit' ? Math.min(deposit, total) : total;
+  const payable = paymentAmount === 'deposit' ? Math.min(deposit, discountedTotal) : discountedTotal;
   const progressStage = step === 1 ? 1 : step <= 4 ? 2 : 3;
   const selectedDateNumber = selectedDate.split('/')[0];
   const summary = useMemo(() => ({
     doctor: autoAssign ? 'Trung tâm sắp xếp' : selectedDoctor?.name || '',
   }), [autoAssign, selectedDoctor]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('mld_pending_voucher');
+    if (!raw || !selectedService) return;
+    try {
+      const pending = JSON.parse(raw);
+      if (pending.scope === 'course') return;
+      apiClient.applyVoucher(pending.code, selectedService.price, 'service', selectedService.category).then((response) => {
+        if (response?.valid) {
+          setVoucherCode(response.code);
+          setVoucherDiscount(response.discountAmount);
+          setVoucherMessage(response.message);
+        } else {
+          setVoucherCode('');
+          setVoucherDiscount(0);
+          setVoucherMessage(response?.error || 'Mã ưu đãi không phù hợp với dịch vụ này.');
+        }
+      });
+    } catch {
+      localStorage.removeItem('mld_pending_voucher');
+    }
+  }, [selectedService]);
 
   const goBack = () => step === 1 ? onClose() : setStep((value) => (value - 1) as BookingStep);
   const goNext = () => setStep((value) => Math.min(7, value + 1) as BookingStep);
@@ -87,10 +113,14 @@ export const GroupCBooking: React.FC<GroupCBookingProps> = ({
       userPhone: customerPhone,
       paymentMethod: paymentMethod === 'bank' ? 'vnpay' : 'hospital',
       notes: note,
+      voucherCode: voucherCode || undefined,
     };
     const response = await apiClient.createBooking(payload);
     setSubmitting(false);
-    if (response?.booking) return onBookingSuccess(response.booking);
+    if (response?.booking) {
+      if (voucherCode) localStorage.removeItem('mld_pending_voucher');
+      return onBookingSuccess(response.booking);
+    }
     setSubmitError(response?.error || 'Không thể đặt lịch. Vui lòng thử lại.');
   };
 
@@ -120,13 +150,13 @@ export const GroupCBooking: React.FC<GroupCBookingProps> = ({
         {step === 2 && <div className="space-y-3">
           <SearchField placeholder="Tìm chi nhánh, địa chỉ..." /><SelectField label="Tỉnh / thành phố" value="Tất cả tỉnh / thành phố" />
           <div className="flex gap-2"><button className="px-4 h-10 rounded-[8px] bg-[#A65317] text-white text-[10px]">Danh sách</button><button className="px-4 h-10 rounded-[8px] bg-white border border-[#DED2C5] text-[10px]">Bản đồ</button></div>
-          {branches.map((branch) => { const active = selectedBranch?.id === branch.id; return <button key={branch.id} onClick={() => setSelectedBranch(branch)} className={`w-full text-left rounded-[10px] overflow-hidden border bg-white ${active ? 'border-[#A65317]' : 'border-[#DED2C5]'}`}><div className="px-3 py-2 flex items-center gap-2 text-[10px]"><Radio active={active} />{active ? 'Có thể đặt trong dữ liệu minh họa' : branch.name}</div><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&auto=format&fit=crop&q=80" alt={branch.name} className="w-full h-[180px] object-cover" /><div className="p-3"><strong className="text-[12px]">{branch.name}</strong><p className="text-[10px] text-[#7A685D] mt-1">{branch.address}</p></div></button>; })}
+          {branches.map((branch) => { const active = selectedBranch?.id === branch.id; return <button key={branch.id} onClick={() => setSelectedBranch(branch)} className={`w-full rounded-[10px] border bg-white p-2 text-left ${active ? 'border-[#A65317]' : 'border-[#DED2C5]'}`}><div className="flex items-start gap-2 px-1 py-1.5"><Radio active={active} /><div><strong className="block text-[12px]">{branch.name}</strong><span className="mt-0.5 block text-[9px] text-[#A65317]">{active ? 'Có thể đặt lịch tại chi nhánh này' : 'Chọn chi nhánh'}</span></div></div><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&auto=format&fit=crop&q=80" alt={branch.name} className="mt-1 h-[180px] w-full rounded-[8px] object-cover" /><p className="px-1 pb-1 pt-2 text-[10px] text-[#7A685D]">{branch.address}</p></button>; })}
         </div>}
 
         {step === 3 && <div className="space-y-3">
           <button onClick={() => setAutoAssign(true)} className={`w-full p-3 rounded-[10px] border text-left bg-white ${autoAssign ? 'border-[#A65317]' : 'border-[#DED2C5]'}`}><div className="flex items-center gap-2 text-[11px]"><Radio active={autoAssign} />Để trung tâm sắp xếp</div><p className="text-[10px] text-[#7A685D] mt-2">Hệ thống sẽ lựa chọn chuyên viên phù hợp với dịch vụ và lịch hẹn.</p></button>
           <SelectField label="Lọc theo chuyên môn" value={`${selectedService.category} · ${selectedBranch.name}`} />
-          {doctors.map((doctor) => { const active = !autoAssign && selectedDoctor?.id === doctor.id; return <button key={doctor.id} onClick={() => { setAutoAssign(false); setSelectedDoctor(doctor); }} className={`w-full p-3 rounded-[10px] border text-left flex gap-3 bg-white ${active ? 'border-[#A65317]' : 'border-[#DED2C5]'}`}><img src={doctor.avatar} alt={doctor.name} className="w-16 h-16 rounded-[8px] object-cover" /><div className="flex-1"><div className="flex items-center gap-2"><Radio active={active} /><strong className="text-[12px]">{doctor.name}</strong></div><p className="text-[10px] text-[#7A685D] mt-1">{doctor.title}</p><span className="text-[9px] text-[#A65317]">Hồ sơ minh họa</span></div></button>; })}
+          {doctors.map((doctor) => { const active = !autoAssign && selectedDoctor?.id === doctor.id; return <button key={doctor.id} onClick={() => { setAutoAssign(false); setSelectedDoctor(doctor); }} className={`w-full rounded-[10px] border bg-white p-2 text-left ${active ? 'border-[#A65317]' : 'border-[#DED2C5]'}`}><div className="flex items-start gap-2 px-1 py-1.5"><Radio active={active} /><div><strong className="block text-[12px]">{doctor.name}</strong><span className="mt-0.5 block text-[9px] text-[#A65317]">{active ? 'Chuyên viên ưu tiên' : doctor.title}</span></div></div><img src={doctor.avatar} alt={doctor.name} className="mt-1 h-[180px] w-full rounded-[8px] object-cover object-top" /><div className="px-1 pb-1 pt-2"><p className="text-[10px] text-[#7A685D]">{doctor.title}</p><p className="mt-1 text-[9px] text-[#7A685D]">★ {doctor.rating} · {doctor.experienceYears} năm kinh nghiệm</p></div></button>; })}
         </div>}
 
         {step === 4 && <div className="space-y-4">
@@ -147,7 +177,7 @@ export const GroupCBooking: React.FC<GroupCBookingProps> = ({
 
         {step === 7 && <div className="space-y-3">
           <div className="p-3 rounded-[8px] bg-[#F3E2CE] text-[10px]"><strong className="text-[#A65317]">Chờ thanh toán</strong><p className="mt-1">Minh họa tĩnh · Chưa xác nhận lịch hẹn.</p></div>
-          <div className="p-3 rounded-[10px] bg-[#F3E2CE] border border-[#E3D0BD] space-y-3"><h3 className="font-bold text-[15px]">Thanh toán ngay {payable.toLocaleString('vi-VN')}đ</h3><button onClick={() => setPaymentAmount('deposit')} className="flex items-center gap-2 text-[11px]"><Radio active={paymentAmount === 'deposit'} />Đặt cọc {deposit.toLocaleString('vi-VN')}đ</button><button onClick={() => setPaymentAmount('full')} className="flex items-center gap-2 text-[11px]"><Radio active={paymentAmount === 'full'} />Thanh toán toàn bộ {total.toLocaleString('vi-VN')}đ</button><p className="text-[10px]">Còn {(total - payable).toLocaleString('vi-VN')}đ thanh toán tại cơ sở.</p></div>
+          <div className="p-3 rounded-[10px] bg-[#F3E2CE] border border-[#E3D0BD] space-y-3"><h3 className="font-bold text-[15px]">Thanh toán ngay {payable.toLocaleString('vi-VN')}đ</h3>{voucherMessage && <div className={`rounded-[7px] px-2.5 py-2 text-[10px] font-semibold ${voucherCode ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{voucherMessage}</div>}{voucherCode && <div className="flex justify-between text-[10px]"><span>Mã {voucherCode}</span><strong>-{voucherDiscount.toLocaleString('vi-VN')}đ</strong></div>}<button onClick={() => setPaymentAmount('deposit')} className="flex items-center gap-2 text-[11px]"><Radio active={paymentAmount === 'deposit'} />Đặt cọc {deposit.toLocaleString('vi-VN')}đ</button><button onClick={() => setPaymentAmount('full')} className="flex items-center gap-2 text-[11px]"><Radio active={paymentAmount === 'full'} />Thanh toán toàn bộ {discountedTotal.toLocaleString('vi-VN')}đ</button><p className="text-[10px]">Còn {(discountedTotal - payable).toLocaleString('vi-VN')}đ thanh toán tại cơ sở.</p></div>
           <button onClick={() => setPaymentMethod('bank')} className={`w-full p-4 rounded-[10px] border text-left text-[11px] ${paymentMethod === 'bank' ? 'bg-[#F3E2CE] border-[#A65317]' : 'bg-white border-[#DED2C5]'}`}><span className="flex items-center gap-2"><Radio active={paymentMethod === 'bank'} />Chuyển khoản ngân hàng / QR</span></button><button onClick={() => setPaymentMethod('cash')} className={`w-full p-4 rounded-[10px] border text-left text-[11px] ${paymentMethod === 'cash' ? 'bg-[#F3E2CE] border-[#A65317]' : 'bg-white border-[#DED2C5]'}`}><span className="flex items-center gap-2"><Radio active={paymentMethod === 'cash'} />Thanh toán tại chi nhánh</span></button>
         </div>}
       </main>
@@ -162,4 +192,4 @@ const SelectField = ({ label, value }: { label: string; value: string }) => <lab
 const Radio = ({ active }: { active: boolean }) => <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${active ? 'bg-[#A65317] border-[#A65317]' : 'bg-white border-[#BDAA9A]'}`}>{active && <CheckIcon size={11} color="#fff" />}</span>;
 const TimeSlots = ({ title, slots, selected, onSelect }: { title: string; slots: string[]; selected: string; onSelect: (slot: string) => void }) => <div><h3 className="text-[11px] font-bold mb-2">{title}</h3><div className="grid grid-cols-3 gap-2">{slots.map((slot) => <button key={slot} onClick={() => onSelect(slot)} className={`h-10 rounded-[8px] border text-[10px] ${selected === slot ? 'bg-[#A65317] text-white border-[#A65317]' : 'bg-white border-[#DED2C5]'}`}><ClockIcon size={11} className="inline mr-1" />{slot.split(' ')[0]}</button>)}</div></div>;
 const InputField = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => <label className="block text-[10px] font-semibold text-[#6F625B]"><span className="block mb-1">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="w-full h-11 px-3 rounded-[8px] bg-white border border-[#DED2C5] text-[11px] text-[#40352F] outline-none focus:border-[#A65317]" /></label>;
-const SummarySection = ({ title, image, rows }: { title: string; image?: string; rows: [string, string][] }) => <section className="p-3 rounded-[10px] bg-white border border-[#DED2C5] space-y-2">{image && <img src={image} alt={title} className="w-full h-28 rounded-[8px] object-cover" />}<h3 className="text-[12px] font-bold">{title}</h3>{rows.map(([label, value]) => <div key={label} className="flex justify-between gap-3 text-[10px]"><span className="text-[#7A685D]">{label}</span><strong className="text-right">{value}</strong></div>)}</section>;
+const SummarySection = ({ title, image, rows }: { title: string; image?: string; rows: [string, string][] }) => <section className="p-3 rounded-[10px] bg-white border border-[#DED2C5] space-y-2"><h3 className="text-[12px] font-bold">{title}</h3>{image && <img src={image} alt={title} className="w-full h-28 rounded-[8px] object-cover" />}{rows.map(([label, value]) => <div key={label} className="flex justify-between gap-3 text-[10px]"><span className="text-[#7A685D]">{label}</span><strong className="text-right">{value}</strong></div>)}</section>;

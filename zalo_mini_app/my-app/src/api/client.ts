@@ -144,12 +144,25 @@ export const apiClient = {
     }
   },
 
-  async applyVoucher(code: string, orderValue: number) {
+  async claimVoucher(code: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/vouchers/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      return await res.json();
+    } catch {
+      return { error: 'Không thể kết nối máy chủ' };
+    }
+  },
+
+  async applyVoucher(code: string, orderValue: number, scope: 'service' | 'course', category = '') {
     try {
       const res = await fetch(`${API_BASE_URL}/vouchers/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, orderValue }),
+        body: JSON.stringify({ code, orderValue, scope, category }),
       });
       return await res.json();
     } catch {

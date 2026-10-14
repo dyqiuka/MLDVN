@@ -172,12 +172,20 @@ export interface MedicalRecord {
 
 export interface Voucher {
   code: string;
-  discountAmount: number;
+  discountAmount?: number;
   discountPercent?: number;
   minOrderValue: number;
   title: string;
   description: string;
   expiryDate: string;
+  id?: string;
+  scope?: 'service' | 'course' | 'all';
+  discountType?: 'fixed' | 'percent';
+  discountValue?: number;
+  maxDiscountAmount?: number | null;
+  applicableCategories?: string[];
+  startsAt?: string;
+  status?: 'available' | 'used' | 'expired';
 }
 
 // Initial In-Memory Database Seed

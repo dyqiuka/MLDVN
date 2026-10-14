@@ -6,6 +6,8 @@ import { prisma } from './lib/prisma.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const asyncRoute = (handler: (req: Request, res: Response) => Promise<unknown>) =>
+  (req: Request, res: Response, next: express.NextFunction) => Promise.resolve(handler(req, res)).catch(next);
 
 app.use(cors());
 app.use(express.json());
@@ -39,6 +41,26 @@ const serializeSpecialist = (specialist: any) => ({
   consultationFee: Number(specialist.consultationFee),
   bio: specialist.bio ?? '',
 });
+
+const serializeVoucher = (item: any) => {
+  const voucher = item.voucher ?? item;
+  const status = item.usedAt ? 'used' : voucher.expiresAt < new Date() ? 'expired' : 'available';
+  return {
+    id: voucher.id,
+    code: voucher.code,
+    title: voucher.title,
+    description: voucher.description,
+    scope: voucher.scope.toLowerCase(),
+    discountType: voucher.discountType.toLowerCase(),
+    discountValue: voucher.discountValue,
+    maxDiscountAmount: voucher.maxDiscountAmount,
+    minOrderValue: voucher.minOrderValue,
+    applicableCategories: voucher.applicableCategories,
+    startsAt: voucher.startsAt.toISOString(),
+    expiryDate: voucher.expiresAt.toISOString(),
+    status,
+  };
+};
 
 const serializeUser = (user: any) => ({
   id: user.id,
@@ -416,6 +438,7 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     userName,
     userPhone,
     notes = '',
+    voucherCode,
   } = req.body;
   const scheduledAt = parseBookingDate(date, timeSlot);
   if (!serviceId || !branchId || !date || !timeSlot || !scheduledAt) {
@@ -433,6 +456,33 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     if (scheduledAt.getTime() <= Date.now()) return res.status(400).json({ error: 'Vui lòng chọn thời gian trong tương lai' });
     if (requestedSpecialist && requestedSpecialist.branchId !== branchId) {
       return res.status(409).json({ error: 'Chuyên viên không làm việc tại chi nhánh đã chọn' });
+    }
+
+    let appliedUserVoucher: any = null;
+    let finalAmount = Number(service.price);
+    if (voucherCode) {
+      appliedUserVoucher = await prisma.userVoucher.findFirst({
+        where: { userId: 'usr_001', usedAt: null, voucher: { code: String(voucherCode).trim().toUpperCase() } },
+        include: { voucher: true },
+      });
+      const voucher = appliedUserVoucher?.voucher;
+      const now = new Date();
+      if (!voucher || !voucher.isActive || voucher.startsAt > now || voucher.expiresAt < now) {
+        return res.status(400).json({ error: 'Mã ưu đãi không khả dụng hoặc đã hết hạn' });
+      }
+      if (voucher.scope !== 'ALL' && voucher.scope !== 'SERVICE') {
+        return res.status(400).json({ error: 'Mã này chỉ áp dụng cho khóa học' });
+      }
+      if (voucher.applicableCategories.length && !voucher.applicableCategories.includes(service.category)) {
+        return res.status(400).json({ error: `Mã chỉ áp dụng cho: ${voucher.applicableCategories.join(', ')}` });
+      }
+      if (finalAmount < voucher.minOrderValue) {
+        return res.status(400).json({ error: `Giá trị dịch vụ tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')} đ` });
+      }
+      const calculated = voucher.discountType === 'PERCENT'
+        ? Math.floor(finalAmount * voucher.discountValue / 100)
+        : voucher.discountValue;
+      finalAmount -= Math.min(calculated, voucher.maxDiscountAmount ?? calculated, finalAmount);
     }
 
     let assignedSpecialist = requestedSpecialist;
@@ -479,7 +529,7 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
           scheduledAt,
           status: BookingStatus.CONFIRMED,
           notes,
-          totalAmount: service.price,
+          totalAmount: finalAmount,
         },
         include: bookingInclude,
       });
@@ -492,6 +542,13 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
           message: `${service.name} lúc ${timeSlot}, ngày ${date} tại ${branch.name}.`,
         },
       });
+      if (appliedUserVoucher) {
+        await tx.userVoucher.update({
+          where: { userId_voucherId: { userId: user.id, voucherId: appliedUserVoucher.voucherId } },
+          data: { usedAt: new Date() },
+        });
+        await tx.voucher.update({ where: { id: appliedUserVoucher.voucherId }, data: { usageCount: { increment: 1 } } });
+      }
       return booking;
     });
     res.status(201).json({ message: 'Đặt lịch thành công', booking: serializeBooking(created) });
@@ -599,7 +656,7 @@ app.get('/api/course-enrollments', async (_req: Request, res: Response) => {
 });
 
 app.post('/api/course-enrollments', async (req: Request, res: Response) => {
-  const { courseId, studentName, phone, email } = req.body;
+  const { courseId, studentName, phone, email, voucherCode } = req.body;
   if (!courseId || !studentName?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: 'Vui lòng nhập đầy đủ họ tên và số điện thoại học viên' });
   }
@@ -612,21 +669,49 @@ app.post('/api/course-enrollments', async (req: Request, res: Response) => {
     if (existing && existing.status !== EnrollmentStatus.CANCELLED) {
       return res.status(409).json({ error: 'Bạn đã đăng ký khóa học này', enrollment: serializeEnrollment(existing) });
     }
+    let appliedUserVoucher: any = null;
+    let finalAmount = Number(course.price);
+    if (voucherCode) {
+      appliedUserVoucher = await prisma.userVoucher.findFirst({
+        where: { userId: 'usr_001', usedAt: null, voucher: { code: String(voucherCode).trim().toUpperCase() } },
+        include: { voucher: true },
+      });
+      const voucher = appliedUserVoucher?.voucher;
+      const now = new Date();
+      if (!voucher || !voucher.isActive || voucher.startsAt > now || voucher.expiresAt < now) {
+        return res.status(400).json({ error: 'Mã ưu đãi không khả dụng hoặc đã hết hạn' });
+      }
+      if (voucher.scope !== 'ALL' && voucher.scope !== 'COURSE') {
+        return res.status(400).json({ error: 'Mã này chỉ áp dụng cho dịch vụ chăm sóc' });
+      }
+      if (finalAmount < voucher.minOrderValue) {
+        return res.status(400).json({ error: `Học phí tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')} đ` });
+      }
+      const calculated = voucher.discountType === 'PERCENT' ? Math.floor(finalAmount * voucher.discountValue / 100) : voucher.discountValue;
+      finalAmount -= Math.min(calculated, voucher.maxDiscountAmount ?? calculated, finalAmount);
+    }
     const code = `MLD-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
     const enrollment = await prisma.$transaction(async (tx) => {
       const saved = existing
         ? await tx.courseEnrollment.update({
             where: { id: existing.id },
-            data: { code, studentName: studentName.trim(), phone: phone.trim(), email: email?.trim() || null, status: EnrollmentStatus.PENDING, totalAmount: course.price },
+            data: { code, studentName: studentName.trim(), phone: phone.trim(), email: email?.trim() || null, status: EnrollmentStatus.PENDING, totalAmount: finalAmount },
             include: { course: true },
           })
         : await tx.courseEnrollment.create({
-            data: { code, userId: 'usr_001', courseId, studentName: studentName.trim(), phone: phone.trim(), email: email?.trim() || null, totalAmount: course.price },
+            data: { code, userId: 'usr_001', courseId, studentName: studentName.trim(), phone: phone.trim(), email: email?.trim() || null, totalAmount: finalAmount },
             include: { course: true },
           });
       await tx.notification.create({
         data: { userId: 'usr_001', type: 'course', entityId: saved.id, title: 'Đăng ký khóa học thành công', message: `${course.title} đã được giữ chỗ. Bộ phận đào tạo sẽ liên hệ xác nhận học phí.` },
       });
+      if (appliedUserVoucher) {
+        await tx.userVoucher.update({
+          where: { userId_voucherId: { userId: 'usr_001', voucherId: appliedUserVoucher.voucherId } },
+          data: { usedAt: new Date() },
+        });
+        await tx.voucher.update({ where: { id: appliedUserVoucher.voucherId }, data: { usageCount: { increment: 1 } } });
+      }
       return saved;
     });
     res.status(201).json({ message: 'Đăng ký khóa học thành công', enrollment: serializeEnrollment(enrollment) });
@@ -687,9 +772,16 @@ app.get('/api/records/:id', (req: Request, res: Response) => {
 // ==========================================
 app.get('/api/membership', async (_req: Request, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: 'usr_001' } });
+    const [user, userVouchers] = await Promise.all([
+      prisma.user.findUnique({ where: { id: 'usr_001' } }),
+      prisma.userVoucher.findMany({
+        where: { userId: 'usr_001', voucher: { isActive: true } },
+        include: { voucher: true },
+        orderBy: { claimedAt: 'desc' },
+      }),
+    ]);
     if (!user) return res.status(404).json({ error: 'Không tìm thấy hội viên' });
-    res.json({ user: { ...serializeUser(user), nextTierPoints: 5000 }, vouchers: database.vouchers });
+    res.json({ user: { ...serializeUser(user), nextTierPoints: 5000 }, vouchers: userVouchers.map(serializeVoucher) });
   } catch (error) {
     console.error('[API] GET /membership failed', error);
     res.status(500).json({ error: 'Không thể tải thông tin hội viên' });
@@ -726,31 +818,63 @@ app.patch('/api/notifications/:id/read', async (req: Request, res: Response) => 
   }
 });
 
-app.post('/api/vouchers/apply', (req: Request, res: Response) => {
-  const { code, orderValue = 450000 } = req.body;
+app.post('/api/vouchers/claim', asyncRoute(async (req: Request, res: Response) => {
+  const code = String(req.body.code ?? '').trim().toUpperCase();
+  if (!code) return res.status(400).json({ error: 'Vui lòng nhập mã ưu đãi' });
+  const voucher = await prisma.voucher.findUnique({ where: { code } });
+  const now = new Date();
+  if (!voucher || !voucher.isActive || voucher.startsAt > now || voucher.expiresAt < now) {
+    return res.status(404).json({ error: 'Mã ưu đãi không tồn tại hoặc đã hết hạn' });
+  }
+  const existing = await prisma.userVoucher.findUnique({
+    where: { userId_voucherId: { userId: 'usr_001', voucherId: voucher.id } },
+  });
+  if (existing) return res.status(409).json({ error: 'Mã ưu đãi đã có trong ví của bạn' });
+  const claimed = await prisma.userVoucher.create({
+    data: { userId: 'usr_001', voucherId: voucher.id }, include: { voucher: true },
+  });
+  res.status(201).json({ voucher: serializeVoucher(claimed), message: `Đã thêm ${code} vào ví ưu đãi` });
+}));
+
+app.post('/api/vouchers/apply', asyncRoute(async (req: Request, res: Response) => {
+  const { code, orderValue, scope, category } = req.body;
   if (!code) {
     return res.status(400).json({ error: 'Vui lòng nhập mã giảm giá' });
   }
-
-  const voucher = database.vouchers.find((v) => v.code.toUpperCase() === code.trim().toUpperCase());
-  if (!voucher) {
-    return res.status(404).json({ error: 'Mã giảm giá không hợp lệ hoặc đã hết hạn' });
+  const userVoucher = await prisma.userVoucher.findFirst({
+    where: { userId: 'usr_001', usedAt: null, voucher: { code: String(code).trim().toUpperCase() } },
+    include: { voucher: true },
+  });
+  const voucher = userVoucher?.voucher;
+  const now = new Date();
+  if (!voucher || !voucher.isActive || voucher.startsAt > now || voucher.expiresAt < now) {
+    return res.status(404).json({ error: 'Mã giảm giá không khả dụng hoặc đã hết hạn' });
   }
-
-  if (orderValue < voucher.minOrderValue) {
+  const normalizedScope = String(scope ?? '').toUpperCase();
+  if (voucher.scope !== 'ALL' && voucher.scope !== normalizedScope) {
+    return res.status(400).json({ error: `Mã này chỉ áp dụng cho ${voucher.scope === 'COURSE' ? 'khóa học' : 'dịch vụ chăm sóc'}` });
+  }
+  if (voucher.applicableCategories.length && !voucher.applicableCategories.includes(String(category ?? ''))) {
+    return res.status(400).json({ error: `Mã chỉ áp dụng cho: ${voucher.applicableCategories.join(', ')}` });
+  }
+  const amount = Number(orderValue);
+  if (!Number.isFinite(amount) || amount < voucher.minOrderValue) {
     return res.status(400).json({
-      error: `Đơn hàng tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')} ₫ mới được áp dụng mã này`,
+      error: `Giá trị tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')} đ để dùng mã này`,
     });
   }
-
+  const calculated = voucher.discountType === 'PERCENT' ? Math.floor(amount * voucher.discountValue / 100) : voucher.discountValue;
+  const discountAmount = Math.min(calculated, voucher.maxDiscountAmount ?? calculated, amount);
   res.json({
     valid: true,
     code: voucher.code,
     title: voucher.title,
-    discountAmount: voucher.discountAmount,
-    message: `Đã áp dụng mã ${voucher.code}, giảm ${voucher.discountAmount.toLocaleString('vi-VN')} ₫!`,
+    scope: voucher.scope.toLowerCase(),
+    discountAmount,
+    finalAmount: amount - discountAmount,
+    message: `Đã áp dụng ${voucher.code}, giảm ${discountAmount.toLocaleString('vi-VN')} đ`,
   });
-});
+}));
 
 // ==========================================
 // 7. WEB ADMIN PORTAL ENDPOINTS (GROUP W)
@@ -834,6 +958,11 @@ app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
     console.error('[API] GET /admin/bootstrap failed', error);
     res.status(500).json({ error: 'Không thể tải dữ liệu quản trị' });
   }
+});
+
+app.use((error: unknown, _req: Request, res: Response, _next: express.NextFunction) => {
+  console.error('[API] Unhandled request error', error);
+  if (!res.headersSent) res.status(500).json({ error: 'Hệ thống đang bận. Vui lòng thử lại sau.' });
 });
 
 // Start Server

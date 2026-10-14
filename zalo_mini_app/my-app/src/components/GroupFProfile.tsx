@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'zmp-ui';
 import { apiClient } from '@/api/client';
-import { User } from '../../../../backend/src/data/database';
+import { User, Voucher } from '../../../../backend/src/data/database';
 import {
   CreditCardIcon,
   CheckIcon,
@@ -28,7 +28,10 @@ interface GroupFProfileProps {
   onOpenAppointments: () => void;
   onOpenPackages: () => void;
   onOpenAcademy: () => void;
+  onOpenCourseCatalog: () => void;
   onOpenOnboarding: () => void;
+  vouchers: Voucher[];
+  onVouchersUpdated: (vouchers: Voucher[]) => void;
 }
 
 export const GroupFProfile: React.FC<GroupFProfileProps> = ({
@@ -37,7 +40,10 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
   onOpenAppointments,
   onOpenPackages,
   onOpenAcademy,
+  onOpenCourseCatalog,
   onOpenOnboarding,
+  vouchers,
+  onVouchersUpdated,
 }) => {
   // Modal states for F02 - F08 screens
   const [activeModal, setActiveModal] = useState<
@@ -72,6 +78,38 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
     avatar: user.avatar,
   });
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const selectAvatarFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Vui lòng chọn một tệp ảnh.');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      showToast('Ảnh phải nhỏ hơn 8 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const size = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        const sourceSize = Math.min(image.width, image.height);
+        context.drawImage(image, (image.width - sourceSize) / 2, (image.height - sourceSize) / 2, sourceSize, sourceSize, 0, 0, size, size);
+        setUserProfile((current) => ({ ...current, avatar: canvas.toDataURL('image/jpeg', 0.78) }));
+        showToast('Đã chọn ảnh. Nhấn Lưu để cập nhật hồ sơ.');
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     setUserProfile((current) => ({
@@ -118,40 +156,8 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
   // Vouchers state & sub-tab
   const [voucherTab, setVoucherTab] = useState<'available' | 'used' | 'expired'>('available');
   const [voucherInput, setVoucherInput] = useState('');
-  const [vouchersList, setVouchersList] = useState([
-    {
-      code: 'MASSAGE20DEMO',
-      title: 'Ưu đãi dịch vụ massage thư giãn',
-      discount: 'GIẢM 20%',
-      desc: 'Giảm 20% tối đa 150.000 ₫ cho hóa đơn massage từ 300.000 ₫ tại chi nhánh Quận 3.',
-      expiry: '31/12/2026',
-      status: 'available',
-    },
-    {
-      code: 'ACADEMY100K',
-      title: 'Ưu đãi học viên mới đăng ký khóa học',
-      discount: 'TẶNG 100.000 ₫',
-      desc: 'Trừ trực tiếp vào học phí đặt cọc khóa học đào tạo nghề bất kỳ.',
-      expiry: '30/11/2026',
-      status: 'available',
-    },
-    {
-      code: 'MLD2026VIP',
-      title: 'Tri ân khách hàng thân thiết MLD',
-      discount: 'GIẢM 50.000 ₫',
-      desc: 'Áp dụng cho mọi liệu trình chăm sóc da hoặc dẫn lưu bạch huyết.',
-      expiry: '28/02/2027',
-      status: 'available',
-    },
-    {
-      code: 'WELCOME50K',
-      title: 'Mã chào mừng thành viên mới',
-      discount: 'GIẢM 50.000 ₫',
-      desc: 'Đã sử dụng cho buổi trải nghiệm đầu tiên.',
-      expiry: '15/09/2026',
-      status: 'used',
-    },
-  ]);
+  const [vouchersList, setVouchersList] = useState<Voucher[]>(vouchers);
+  useEffect(() => setVouchersList(vouchers), [vouchers]);
 
   // Invoice detail modal state
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -174,24 +180,41 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
     setTimeout(() => setCopiedVoucher(null), 2000);
   };
 
-  const handleApplyNewVoucher = () => {
+  const voucherLabel = (voucher: Voucher) => {
+    if (voucher.discountType === 'percent') return `GIẢM ${voucher.discountValue}%`;
+    const amount = voucher.discountValue ?? voucher.discountAmount ?? 0;
+    return `GIẢM ${amount.toLocaleString('vi-VN')} đ`;
+  };
+
+  const voucherExpiry = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN');
+  };
+
+  const useVoucher = (voucher: Voucher) => {
+    localStorage.setItem('mld_pending_voucher', JSON.stringify({ code: voucher.code, scope: voucher.scope }));
+    setActiveModal(null);
+    if (voucher.scope === 'course') onOpenCourseCatalog();
+    else onOpenAppointments();
+  };
+
+  const handleApplyNewVoucher = async () => {
     const clean = voucherInput.trim().toUpperCase();
     if (!clean) return;
     if (vouchersList.some((v) => v.code === clean)) {
       showToast('Mã voucher này đã có trong ví của bạn!');
       return;
     }
-    const newV = {
-      code: clean,
-      title: 'Mã ưu đãi khuyến mãi đặc biệt',
-      discount: 'GIẢM 15%',
-      desc: 'Áp dụng cho tất cả dịch vụ tại trung tâm MLD.',
-      expiry: '31/12/2026',
-      status: 'available',
-    };
-    setVouchersList([newV, ...vouchersList]);
+    const response = await apiClient.claimVoucher(clean);
+    if (!response?.voucher) {
+      showToast(response?.error || 'Không thể thêm mã ưu đãi.');
+      return;
+    }
+    const next = [response.voucher, ...vouchersList];
+    setVouchersList(next);
+    onVouchersUpdated(next);
     setVoucherInput('');
-    showToast(`Đã thêm mã ${clean} vào ví ưu đãi!`);
+    showToast(response.message || `Đã thêm mã ${clean} vào ví ưu đãi!`);
   };
 
   const handleRedeemReward = (rewardName: string, costPoints: number) => {
@@ -334,7 +357,7 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
             className="flex items-center justify-between p-3.5 hover:bg-[#FAF6F0] cursor-pointer text-xs transition"
           >
             <div className="flex items-center space-x-2.5">
-              <TagIcon size={16} className="text-[#98501B]" />
+              <span className="flex h-7 w-7 items-center justify-center text-[#98501B]"><TagIcon size={17} /></span>
               <span className="font-semibold text-[#40352F]">Ưu đãi của tôi ({vouchersList.filter(v => v.status === 'available').length} voucher)</span>
             </div>
             <span className="text-[#A09085]">&gt;</span>
@@ -345,7 +368,7 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
             className="flex items-center justify-between p-3.5 hover:bg-[#FAF6F0] cursor-pointer text-xs transition"
           >
             <div className="flex items-center space-x-2.5">
-              <span className="text-sm">⭐</span>
+              <span className="flex h-7 w-7 items-center justify-center text-[#98501B]"><StarIcon size={17} filled={false} /></span>
               <span className="font-semibold text-[#40352F]">Điểm tích lũy & Hạng hội viên</span>
             </div>
             <span className="text-[#A09085]">&gt;</span>
@@ -356,7 +379,7 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
             className="flex items-center justify-between p-3.5 hover:bg-[#FAF6F0] cursor-pointer text-xs transition"
           >
             <div className="flex items-center space-x-2.5">
-              <FileTextIcon size={16} className="text-[#98501B]" />
+              <span className="flex h-7 w-7 items-center justify-center text-[#98501B]"><FileTextIcon size={17} /></span>
               <span className="font-semibold text-[#40352F]">Lịch sử thanh toán & Hóa đơn điện tử</span>
             </div>
             <span className="text-[#A09085]">&gt;</span>
@@ -367,7 +390,7 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
             className="flex items-center justify-between p-3.5 hover:bg-[#FAF6F0] cursor-pointer text-xs transition"
           >
             <div className="flex items-center space-x-2.5">
-              <span className="text-sm">🎁</span>
+              <span className="flex h-7 w-7 items-center justify-center text-[#98501B]"><UserCheckIcon size={17} /></span>
               <span className="font-semibold text-[#40352F]">Giới thiệu bạn bè (Nhận 100.000 ₫)</span>
             </div>
             <span className="text-[#A09085]">&gt;</span>
@@ -378,7 +401,7 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
             className="flex items-center justify-between p-3.5 hover:bg-[#FAF6F0] cursor-pointer text-xs transition"
           >
             <div className="flex items-center space-x-2.5">
-              <span className="text-sm">⚙️</span>
+              <span className="flex h-7 w-7 items-center justify-center text-[#98501B]"><ShieldIcon size={17} /></span>
               <span className="font-semibold text-[#40352F]">Cài đặt tài khoản & Bảo mật</span>
             </div>
             <span className="text-[#A09085]">&gt;</span>
@@ -469,6 +492,10 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
                         />
                       ))}
                     </div>
+                    <label htmlFor="profile-avatar-file" className="mx-auto mt-3 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-[8px] border border-[#98501B] bg-white text-xs font-bold text-[#98501B]">
+                      <CameraIcon size={17} /> Chọn ảnh từ thiết bị
+                    </label>
+                    <input id="profile-avatar-file" type="file" accept="image/*" onChange={selectAvatarFile} className="hidden" />
                   </div>
                 </div>
 
@@ -991,12 +1018,12 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
                 <div key={idx} className="bg-white p-4 rounded-2xl border border-[#EADECF] shadow-xs space-y-2">
                   <div className="flex justify-between items-start">
                     <span className="text-xs font-extrabold text-[#98501B] bg-[#FAF6F0] px-2.5 py-1 rounded-md border border-[#EADECF]">
-                      {vc.discount}
+                      {voucherLabel(vc)}
                     </span>
-                    <span className="text-[11px] text-[#7A685D]">HSD: {vc.expiry}</span>
+                    <span className="text-[11px] text-[#7A685D]">HSD: {voucherExpiry(vc.expiryDate)}</span>
                   </div>
                   <h4 className="text-xs font-bold text-[#40352F]">{vc.title}</h4>
-                  <p className="text-[11px] text-[#7A685D] leading-relaxed">{vc.desc}</p>
+                  <p className="text-[11px] text-[#7A685D] leading-relaxed">{vc.description}</p>
                   <div className="flex justify-between items-center pt-2 border-t border-[#EADECF]">
                     <span className="font-mono text-xs font-black text-[#98501B]">{vc.code}</span>
                     <div className="flex space-x-2">
@@ -1008,10 +1035,7 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
                       </button>
                       {vc.status === 'available' && (
                         <button
-                          onClick={() => {
-                            setActiveModal(null);
-                            onOpenAppointments();
-                          }}
+                          onClick={() => useVoucher(vc)}
                           className="px-3.5 py-1.5 rounded-lg bg-[#98501B] text-white text-[11px] font-bold hover:bg-[#804215]"
                         >
                           Dùng ngay &gt;

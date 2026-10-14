@@ -51,10 +51,13 @@ import {
 
 function MasterHomePage() {
   // App Mode: 'miniapp' (Zalo Mini App) | 'admin' (Figma Group W Web Admin)
-  const [appMode, setAppMode] = useState<'miniapp' | 'admin'>('miniapp');
+  const [appMode, setAppMode] = useState<'miniapp' | 'admin'>(() =>
+    new URLSearchParams(window.location.search).get('admin') === '1' ? 'admin' : 'miniapp'
+  );
 
   // Navigation Tabs matching Figma Nhóm B & C: 'home' | 'services' | 'booking' | 'academy' | 'profile'
   const [activeTab, setActiveTab] = useState<'home' | 'services' | 'booking' | 'academy' | 'profile'>('home');
+  const [academyMode, setAcademyMode] = useState<'catalog' | 'learning'>('catalog');
 
   // Application Data States (synced with Backend API)
   const [services, setServices] = useState<MedicalService[]>(database.services);
@@ -338,6 +341,16 @@ function MasterHomePage() {
                 </Box>
               ))}
             </Box>
+
+            <section className="space-y-3 border-t border-[#E8DDD2] pt-4">
+              <div className="flex items-center justify-between">
+                <div><h2 className="text-[14px] font-bold text-[#6F452C]">Đội ngũ chuyên viên</h2><p className="mt-0.5 text-[9px] text-[#7A685D]">Chọn chuyên viên phù hợp với nhu cầu chăm sóc.</p></div>
+                <button onClick={() => setIsSpecialistDirectoryOpen(true)} className="h-8 rounded-[7px] border border-[#D8C9BA] bg-white px-3 text-[9px] font-bold text-[#A65317]">Xem tất cả</button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {doctors.slice(0, 2).map((doctor) => <button key={doctor.id} onClick={() => setViewingDoctor(doctor)} className="overflow-hidden rounded-[8px] border border-[#E3D7CB] bg-white text-left"><img src={doctor.avatar} alt={doctor.name} className="h-[105px] w-full object-cover" /><div className="p-2.5"><h3 className="line-clamp-1 text-[11px] font-bold text-[#40352F]">{doctor.name}</h3><p className="mt-1 line-clamp-1 text-[9px] text-[#7A685D]">{doctor.title}</p><p className="mt-2 text-[9px] font-semibold text-[#A65317]">★ {doctor.rating} · {doctor.experienceYears} năm</p></div></button>)}
+              </div>
+            </section>
           </Box>
         )}
 
@@ -355,7 +368,7 @@ function MasterHomePage() {
         )}
 
         {/* TAB 4: HỌC VIỆN & ĐÀO TẠO NGHỀ (FIGMA GROUP E) */}
-        {activeTab === 'academy' && <GroupEAcademy courses={courses} />}
+        {activeTab === 'academy' && <GroupEAcademy key={academyMode} courses={courses} mode={academyMode} />}
 
         {/* TAB 5: HỘI VIÊN & CÁ NHÂN (FIGMA GROUP F VIP PASS) */}
         {activeTab === 'profile' && (
@@ -368,11 +381,20 @@ function MasterHomePage() {
                 setTreatmentInitialTab('packages');
                 setIsTreatmentOpen(true);
               }}
-              onOpenAcademy={() => setActiveTab('academy')}
+              onOpenAcademy={() => {
+                setAcademyMode('learning');
+                setActiveTab('academy');
+              }}
+              onOpenCourseCatalog={() => {
+                setAcademyMode('catalog');
+                setActiveTab('academy');
+              }}
               onOpenOnboarding={() => {
                 setCanCloseAuth(true);
                 setIsAuthOpen(true);
               }}
+              vouchers={vouchers}
+              onVouchersUpdated={setVouchers}
             />
           </Box>
         )}
@@ -542,6 +564,7 @@ function MasterHomePage() {
         }}
         onSelectCourse={() => {
           setIsSearchOpen(false);
+          setAcademyMode('catalog');
           setActiveTab('academy');
         }}
         onSelectBranch={(br) => {
@@ -563,6 +586,7 @@ function MasterHomePage() {
             <GroupDTreatment
               key={treatmentInitialTab}
               initialTab={treatmentInitialTab}
+              onClose={() => setIsTreatmentOpen(false)}
               onOpenBooking={() => {
                 setIsTreatmentOpen(false);
                 openBooking(services[0]);
@@ -592,6 +616,7 @@ function MasterHomePage() {
                   if (tab.key === 'booking') {
                     openBooking(services[0]);
                   }
+                  if (tab.key === 'academy') setAcademyMode('catalog');
                   setActiveTab(tab.key as any);
                 }}
                 className={`w-full h-[58px] flex flex-col items-center justify-center gap-1 transition-colors rounded-[10px] active:scale-[0.98] ${

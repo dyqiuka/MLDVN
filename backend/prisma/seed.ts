@@ -1,4 +1,4 @@
-import { BookingStatus, PrismaClient, UserRole } from '@prisma/client';
+import { BookingStatus, DiscountType, PrismaClient, UserRole, VoucherScope } from '@prisma/client';
 import { database } from '../src/data/database.js';
 
 const prisma = new PrismaClient();
@@ -210,6 +210,38 @@ async function main() {
         notes: booking.notes,
         totalAmount: booking.finalPrice,
       },
+    });
+  }
+
+  const vouchers = [
+    {
+      id: 'vch_massage20', code: 'MASSAGE20DEMO', title: 'Ưu đãi dịch vụ massage thư giãn',
+      description: 'Giảm 20% tối đa 150.000 đ cho dịch vụ Massage từ 300.000 đ.',
+      scope: VoucherScope.SERVICE, discountType: DiscountType.PERCENT, discountValue: 20,
+      maxDiscountAmount: 150000, minOrderValue: 300000, applicableCategories: ['Massage'],
+      startsAt: new Date('2026-01-01T00:00:00.000Z'), expiresAt: new Date('2026-12-31T16:59:59.000Z'),
+    },
+    {
+      id: 'vch_academy100', code: 'ACADEMY100K', title: 'Ưu đãi học viên mới đăng ký khóa học',
+      description: 'Giảm trực tiếp 100.000 đ cho học phí đặt cọc khóa học.',
+      scope: VoucherScope.COURSE, discountType: DiscountType.FIXED, discountValue: 100000,
+      maxDiscountAmount: null, minOrderValue: 1000000, applicableCategories: [],
+      startsAt: new Date('2026-01-01T00:00:00.000Z'), expiresAt: new Date('2026-11-30T16:59:59.000Z'),
+    },
+    {
+      id: 'vch_mldvip', code: 'MLD2026VIP', title: 'Tri ân khách hàng thân thiết MLD',
+      description: 'Giảm 50.000 đ cho Chăm sóc da hoặc Dẫn lưu bạch huyết.',
+      scope: VoucherScope.SERVICE, discountType: DiscountType.FIXED, discountValue: 50000,
+      maxDiscountAmount: null, minOrderValue: 300000, applicableCategories: ['Chăm sóc da', 'Dẫn lưu bạch huyết'],
+      startsAt: new Date('2026-01-01T00:00:00.000Z'), expiresAt: new Date('2027-02-28T16:59:59.000Z'),
+    },
+  ];
+
+  for (const voucher of vouchers) {
+    await prisma.voucher.upsert({ where: { code: voucher.code }, update: voucher, create: voucher });
+    await prisma.userVoucher.upsert({
+      where: { userId_voucherId: { userId: 'usr_001', voucherId: voucher.id } },
+      update: {}, create: { userId: 'usr_001', voucherId: voucher.id },
     });
   }
 

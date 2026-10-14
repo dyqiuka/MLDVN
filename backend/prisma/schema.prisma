@@ -28,6 +28,17 @@ enum EnrollmentStatus {
   COMPLETED
 }
 
+enum VoucherScope {
+  SERVICE
+  COURSE
+  ALL
+}
+
+enum DiscountType {
+  FIXED
+  PERCENT
+}
+
 model User {
   id        String    @id @default(cuid())
   zaloId    String?   @unique
@@ -51,6 +62,40 @@ model User {
   bookings  Booking[]
   enrollments CourseEnrollment[]
   notifications Notification[]
+  vouchers UserVoucher[]
+}
+
+model Voucher {
+  id                   String       @id @default(cuid())
+  code                 String       @unique
+  title                String
+  description          String
+  scope                VoucherScope
+  discountType         DiscountType
+  discountValue        Int
+  maxDiscountAmount    Int?
+  minOrderValue        Int          @default(0)
+  applicableCategories String[]
+  startsAt             DateTime
+  expiresAt            DateTime
+  usageLimit           Int?
+  usageCount           Int          @default(0)
+  isActive             Boolean      @default(true)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  users                UserVoucher[]
+}
+
+model UserVoucher {
+  userId     String
+  voucherId  String
+  claimedAt  DateTime @default(now())
+  usedAt     DateTime?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voucher    Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  @@id([userId, voucherId])
+  @@index([userId, usedAt])
 }
 
 model Branch {
