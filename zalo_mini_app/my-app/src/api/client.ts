@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://mld-api.onrender.com/api').replace(/\/$/, '');
 
 const responseJson = async (res: Response) => {
   const data = await res.json().catch(() => ({}));
@@ -136,7 +136,7 @@ export const apiClient = {
 
   async getMembership() {
     try {
-      const res = await fetch(`${API_BASE_URL}/membership`);
+      const res = await fetch(`${API_BASE_URL}/membership`, { cache: 'no-store' });
       if (!res.ok) throw new Error('API error');
       return await res.json();
     } catch {
@@ -146,7 +146,17 @@ export const apiClient = {
 
   async getTreatmentPlans() {
     try {
-      const res = await fetch(`${API_BASE_URL}/treatment-plans`);
+      const res = await fetch(`${API_BASE_URL}/treatment-plans`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('API error');
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getTransactions() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/transactions`, { cache: 'no-store' });
       if (!res.ok) throw new Error('API error');
       return await res.json();
     } catch {

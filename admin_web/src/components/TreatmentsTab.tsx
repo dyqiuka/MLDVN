@@ -1,69 +1,46 @@
 import React, { useMemo, useState } from 'react';
-import { Calendar, ListOrdered, RefreshCw, Search, Sparkles } from 'lucide-react';
+import { Calendar, Edit3, ImagePlus, ListOrdered, Plus, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { useAdminData } from '../AdminDataContext';
+import { apiRequest } from '../api';
 
 const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString('vi-VN') : '--';
 
 export const TreatmentsTab: React.FC = () => {
   const { data, loading, refresh } = useAdminData();
   const [query, setQuery] = useState('');
-  const plans = useMemo(() => data.treatmentPlans.filter((plan) =>
-    `${plan.name} ${plan.branch?.name || ''}`.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))
-  ), [data.treatmentPlans, query]);
+  const [editing, setEditing] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const plans = useMemo(() => data.treatmentPlans.filter((plan) => `${plan.name} ${plan.user?.name || ''} ${plan.branch?.name || ''}`.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))), [data.treatmentPlans, query]);
   const active = data.treatmentPlans.filter((plan) => plan.status === 'active');
   const remaining = active.reduce((sum, plan) => sum + plan.remainingSessions, 0);
   const used = data.treatmentPlans.reduce((sum, plan) => sum + plan.usedSessions, 0);
+  const openForm = (plan?: any) => setEditing(plan ? { ...plan, expiresAt: String(plan.expiryDate).slice(0, 10), imageUrl: plan.image || '' } : { name: '', userId: data.users[0]?.id || 'usr_001', serviceId: data.services[0]?.id || '', branchId: data.branches[0]?.id || '', totalSessions: 10, expiresAt: '', imageUrl: '', notes: '', status: 'active' });
+  const readImage = (file?: File) => { if (!file) return; if (!file.type.startsWith('image/') || file.size > 8 * 1024 * 1024) return setMessage('Ảnh phải đúng định dạng và nhỏ hơn 8 MB.'); const reader = new FileReader(); reader.onload = () => setEditing((current: any) => ({ ...current, imageUrl: String(reader.result) })); reader.readAsDataURL(file); };
+  const save = async () => { setSaving(true); setMessage(''); try { await apiRequest(editing.id ? `/admin/treatment-plans/${editing.id}` : '/admin/treatment-plans', { method: editing.id ? 'PATCH' : 'POST', body: JSON.stringify(editing) }); setEditing(null); setMessage('Đã lưu liệu trình vào database.'); await refresh(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Không thể lưu liệu trình'); } finally { setSaving(false); } };
+  const addSession = async (plan: any) => { try { await apiRequest(`/admin/treatment-plans/${plan.id}/sessions`, { method: 'POST', body: JSON.stringify({ title: `Buổi chăm sóc ${plan.sessions.length + 1}` }) }); setMessage('Đã thêm buổi chăm sóc.'); await refresh(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Không thể thêm buổi'); } };
+  const completeSession = async (id: string) => { try { await apiRequest(`/admin/treatment-sessions/${id}/complete`, { method: 'PATCH', body: '{}' }); setMessage('Đã hoàn thành buổi và gửi thông báo cho khách hàng.'); await refresh(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Không thể cập nhật buổi'); } };
 
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-stone-900">Quản lý liệu trình</h1>
-          <p className="mt-1 text-xs text-stone-500">Gói và lịch sử buổi chăm sóc đồng bộ từ database.</p>
-        </div>
-        <button onClick={refresh} className="flex h-10 items-center gap-2 rounded-lg bg-[#8B4513] px-4 text-xs font-semibold text-white">
-          <RefreshCw className="h-4 w-4" /> Làm mới
-        </button>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-3">
-        {[
-          ['Gói đang sử dụng', active.length, Sparkles],
-          ['Buổi còn lại', remaining, Calendar],
-          ['Buổi đã sử dụng', used, ListOrdered],
-        ].map(([label, value, Icon]: any) => (
-          <div key={label} className="flex items-center justify-between rounded-lg border border-stone-200 bg-white p-4">
-            <div><p className="text-xs text-stone-500">{label}</p><p className="mt-1 text-2xl font-bold text-stone-900">{value}</p></div>
-            <Icon className="h-6 w-6 text-[#8B4513]" />
-          </div>
-        ))}
-      </div>
-
-      <label className="flex h-10 max-w-xl items-center gap-2 rounded-lg border border-stone-200 bg-white px-3">
-        <Search className="h-4 w-4 text-stone-400" />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm gói hoặc chi nhánh..." className="w-full text-xs outline-none" />
-      </label>
-
-      <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left text-xs">
-            <thead className="bg-[#F5EBE1] text-stone-700"><tr><th className="px-4 py-3">Gói liệu trình</th><th className="px-4 py-3">Cơ sở</th><th className="px-4 py-3">Thời hạn</th><th className="px-4 py-3">Tiến độ</th><th className="px-4 py-3">Trạng thái</th></tr></thead>
-            <tbody className="divide-y divide-stone-100">
-              {plans.map((plan) => <React.Fragment key={plan.id}>
-                <tr>
-                  <td className="px-4 py-3"><strong>{plan.name}</strong><div className="mt-1 text-stone-500">{plan.totalSessions} buổi</div></td>
-                  <td className="px-4 py-3">{plan.branch?.name || '--'}</td>
-                  <td className="px-4 py-3">{formatDate(plan.purchaseDate)} - {formatDate(plan.expiryDate)}</td>
-                  <td className="px-4 py-3"><strong>{plan.usedSessions}/{plan.totalSessions}</strong><div className="mt-1 h-2 w-28 overflow-hidden rounded-full bg-stone-100"><div className="h-full bg-[#8B4513]" style={{ width: `${plan.progressPercent}%` }} /></div></td>
-                  <td className="px-4 py-3"><span className="rounded bg-[#F5EBE1] px-2 py-1 font-semibold text-[#8B4513]">{plan.status === 'active' ? 'Đang sử dụng' : plan.status}</span></td>
-                </tr>
-                <tr className="bg-stone-50/60"><td colSpan={5} className="px-4 py-3"><div className="flex flex-wrap gap-2">{plan.sessions.length ? plan.sessions.map((session: any) => <span key={session.id} className="rounded-md border border-stone-200 bg-white px-2.5 py-1.5 text-[11px]">Buổi {session.sessionNumber}: {session.title} · {session.status === 'completed' ? 'Hoàn thành' : 'Đã xếp lịch'}</span>) : <span className="text-stone-400">Chưa có lịch sử buổi.</span>}</div></td></tr>
-              </React.Fragment>)}
-              {!loading && plans.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-stone-400">Không có gói liệu trình phù hợp.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="space-y-5">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">Quản lý liệu trình</h1><p className="mt-1 text-xs text-stone-500">Dữ liệu đồng bộ với hồ sơ khách hàng và Mini App.</p></div><div className="flex gap-2"><button onClick={refresh} className="flex h-10 items-center gap-2 rounded-lg border bg-white px-4 text-xs font-semibold"><RefreshCw className="h-4 w-4"/>Làm mới</button><button onClick={() => openForm()} className="flex h-10 items-center gap-2 rounded-lg bg-[#8B4513] px-4 text-xs font-semibold text-white"><Plus className="h-4 w-4"/>Thêm liệu trình</button></div></div>
+    {message && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">{message}</div>}
+    <div className="grid gap-3 md:grid-cols-3">{[['Gói đang sử dụng', active.length, Sparkles],['Buổi còn lại',remaining,Calendar],['Buổi đã sử dụng',used,ListOrdered]].map(([label,value,Icon]:any)=><div key={label} className="flex items-center justify-between rounded-lg border bg-white p-4"><div><p className="text-xs text-stone-500">{label}</p><p className="mt-1 text-2xl font-bold">{value}</p></div><Icon className="h-6 w-6 text-[#8B4513]"/></div>)}</div>
+    <label className="flex h-10 max-w-xl items-center gap-2 rounded-lg border bg-white px-3"><Search className="h-4 w-4 text-stone-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Tìm khách hàng, gói hoặc chi nhánh..." className="w-full text-xs outline-none"/></label>
+    <div className="overflow-hidden rounded-lg border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-[#F5EBE1]"><tr><th className="px-4 py-3">Liệu trình</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3">Cơ sở</th><th className="px-4 py-3">Thời hạn</th><th className="px-4 py-3">Tiến độ</th><th className="px-4 py-3">Thao tác</th></tr></thead><tbody className="divide-y">
+      {plans.map(plan=><React.Fragment key={plan.id}><tr><td className="px-4 py-3"><div className="flex items-center gap-3">{plan.image?<img src={plan.image} className="h-12 w-16 rounded object-cover"/>:<span className="flex h-12 w-16 items-center justify-center rounded bg-stone-100"><ImagePlus className="h-5 w-5 text-stone-400"/></span>}<div><strong>{plan.name}</strong><div className="text-stone-500">{plan.totalSessions} buổi</div></div></div></td><td className="px-4 py-3">{plan.user?.name || '--'}</td><td className="px-4 py-3">{plan.branch?.name || '--'}</td><td className="px-4 py-3">{formatDate(plan.purchaseDate)} - {formatDate(plan.expiryDate)}</td><td className="px-4 py-3"><strong>{plan.usedSessions}/{plan.totalSessions}</strong><div className="mt-1 h-2 w-28 overflow-hidden rounded-full bg-stone-100"><div className="h-full bg-[#8B4513]" style={{width:`${plan.progressPercent}%`}}/></div></td><td className="px-4 py-3"><button onClick={()=>openForm(plan)} className="flex items-center gap-1 rounded border px-2.5 py-2 font-semibold"><Edit3 className="h-3.5 w-3.5"/>Sửa</button></td></tr>
+      <tr className="bg-stone-50/60"><td colSpan={6} className="px-4 py-3"><div className="flex flex-wrap items-center gap-2">{plan.sessions.map((session:any)=><button key={session.id} disabled={session.status==='completed'} onClick={()=>completeSession(session.id)} className="rounded-md border bg-white px-2.5 py-1.5 text-[11px] disabled:text-emerald-700">Buổi {session.sessionNumber}: {session.title} · {session.status==='completed'?'Hoàn thành':'Đánh dấu hoàn thành'}</button>)}<button onClick={()=>addSession(plan)} className="rounded-md border border-dashed border-[#8B4513] px-2.5 py-1.5 text-[11px] font-semibold text-[#8B4513]">+ Thêm buổi</button></div></td></tr></React.Fragment>)}
+      {!loading&&!plans.length&&<tr><td colSpan={6} className="px-4 py-10 text-center text-stone-400">Không có liệu trình phù hợp.</td></tr>}
+    </tbody></table></div></div>
+    {editing&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" onMouseDown={()=>setEditing(null)}><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl" onMouseDown={e=>e.stopPropagation()}><div className="flex items-center justify-between"><h2 className="text-lg font-bold">{editing.id?'Sửa liệu trình':'Thêm liệu trình'}</h2><button onClick={()=>setEditing(null)}><X className="h-5 w-5"/></button></div><div className="mt-4 grid gap-3 md:grid-cols-2">
+      <label className="text-xs font-semibold md:col-span-2">Tên liệu trình<input value={editing.name} onChange={e=>setEditing({...editing,name:e.target.value})} className="mt-1 h-10 w-full rounded-lg border px-3 font-normal"/></label>
+      <label className="text-xs font-semibold">Khách hàng<select value={editing.userId} onChange={e=>setEditing({...editing,userId:e.target.value})} disabled={!!editing.id} className="mt-1 h-10 w-full rounded-lg border px-3 font-normal">{data.users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
+      <label className="text-xs font-semibold">Dịch vụ<select value={editing.serviceId || editing.service?.id} onChange={e=>setEditing({...editing,serviceId:e.target.value})} className="mt-1 h-10 w-full rounded-lg border px-3 font-normal">{data.services.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      <label className="text-xs font-semibold">Chi nhánh<select value={editing.branchId || editing.branch?.id} onChange={e=>setEditing({...editing,branchId:e.target.value})} className="mt-1 h-10 w-full rounded-lg border px-3 font-normal">{data.branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+      <label className="text-xs font-semibold">Tổng số buổi<input type="number" min="1" value={editing.totalSessions} onChange={e=>setEditing({...editing,totalSessions:Number(e.target.value)})} className="mt-1 h-10 w-full rounded-lg border px-3 font-normal"/></label>
+      <label className="text-xs font-semibold">Ngày hết hạn<input type="date" value={editing.expiresAt} onChange={e=>setEditing({...editing,expiresAt:e.target.value})} className="mt-1 h-10 w-full rounded-lg border px-3 font-normal"/></label>
+      <label className="text-xs font-semibold">Trạng thái<select value={editing.status} onChange={e=>setEditing({...editing,status:e.target.value})} className="mt-1 h-10 w-full rounded-lg border px-3 font-normal"><option value="active">Đang dùng</option><option value="completed">Hoàn thành</option><option value="expired">Hết hạn</option><option value="cancelled">Đã hủy</option></select></label>
+      <label className="text-xs font-semibold md:col-span-2">Ảnh minh họa<input type="file" accept="image/*" onChange={e=>readImage(e.target.files?.[0])} className="mt-1 block w-full rounded-lg border p-2 font-normal"/></label>{editing.imageUrl&&<img src={editing.imageUrl} className="h-36 w-full rounded-lg object-cover md:col-span-2"/>}
+      <label className="text-xs font-semibold md:col-span-2">Ghi chú<textarea value={editing.notes||''} onChange={e=>setEditing({...editing,notes:e.target.value})} className="mt-1 min-h-20 w-full rounded-lg border p-3 font-normal"/></label>
+    </div><button disabled={saving} onClick={save} className="mt-5 h-11 w-full rounded-lg bg-[#8B4513] text-xs font-bold text-white disabled:opacity-50">{saving?'Đang lưu...':'Lưu vào database'}</button></div></div>}
+  </div>;
 };

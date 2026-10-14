@@ -14,6 +14,7 @@ import {
   HelpCircle,
   ClipboardList,
   BriefcaseMedical,
+  Stethoscope,
   ShieldCheck,
 } from 'lucide-react';
 
@@ -28,6 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
     { id: 'appointments', label: 'Lịch hẹn', icon: ClipboardList },
     { id: 'branches', label: 'Chi nhánh', icon: Building2 },
     { id: 'customers', label: 'Khách hàng', icon: Users },
+    { id: 'specialists', label: 'Chuyên viên chăm sóc', icon: Stethoscope },
     { id: 'staff_schedule', label: 'Lịch kỹ thuật viên', icon: Calendar },
     { id: 'treatments', label: 'Liệu trình', icon: Sparkles },
     { id: 'services', label: 'Dịch vụ', icon: BriefcaseMedical },

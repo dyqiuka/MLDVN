@@ -269,6 +269,23 @@ async function main() {
     });
   }
 
+  const seedInvoices = [
+    { id: 'inv_001', code: 'HD-2026-1008', bookingId: 'bk_002', title: 'Massage thư giãn toàn thân', description: 'Chi nhánh 01 - Quận 3', amount: 450000, discount: 0, finalAmount: 450000, paymentMethod: 'VietQR / Chuyển khoản', paidAt: new Date('2026-10-08T03:00:00.000Z') },
+    { id: 'inv_002', code: 'HD-2026-0928', bookingId: null, title: 'Gói Massage thư giãn 10 buổi', description: 'Thanh toán gói liệu trình', amount: 4500000, discount: 450000, finalAmount: 4050000, paymentMethod: 'Thẻ ngân hàng', paidAt: new Date('2026-09-01T03:00:00.000Z') },
+  ];
+  for (const invoice of seedInvoices) {
+    await prisma.invoice.upsert({ where: { code: invoice.code }, update: invoice, create: { ...invoice, userId: 'usr_001', status: 'PAID' } });
+  }
+
+  const pointHistory = [
+    { id: 'point_001', description: 'Hoàn thành buổi Massage thư giãn', points: 150, entityType: 'treatment', entityId: 'treat_04', createdAt: new Date('2026-10-08T03:00:00.000Z') },
+    { id: 'point_002', description: 'Đăng ký khóa học đào tạo nghề MLD', points: 300, entityType: 'course', entityId: 'course_01', createdAt: new Date('2026-10-02T03:00:00.000Z') },
+    { id: 'point_003', description: 'Đổi voucher giảm giá 50.000 đ', points: -300, entityType: 'voucher', entityId: 'vch_mldvip', createdAt: new Date('2026-09-25T03:00:00.000Z') },
+  ];
+  for (const transaction of pointHistory) {
+    await prisma.pointTransaction.upsert({ where: { id: transaction.id }, update: transaction, create: { ...transaction, userId: 'usr_001' } });
+  }
+
   const [users, branches, services, specialists, bookings, courses] = await Promise.all([
     prisma.user.count(),
     prisma.branch.count(),

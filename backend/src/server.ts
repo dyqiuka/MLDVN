@@ -10,7 +10,7 @@ const asyncRoute = (handler: (req: Request, res: Response) => Promise<unknown>) 
   (req: Request, res: Response, next: express.NextFunction) => Promise.resolve(handler(req, res)).catch(next);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const serializeService = (service: any) => ({
   id: service.id,
@@ -69,6 +69,8 @@ const serializeTreatmentPlan = (plan: any) => {
   return {
     id: plan.id,
     name: plan.name,
+    image: plan.imageUrl ?? plan.service?.imageUrl ?? '',
+    notes: plan.notes ?? '',
     status: plan.status.toLowerCase(),
     totalSessions: plan.totalSessions,
     usedSessions: completed,
@@ -79,6 +81,7 @@ const serializeTreatmentPlan = (plan: any) => {
     expiryDate: plan.expiresAt.toISOString(),
     service: plan.service ? serializeService(plan.service) : undefined,
     branch: plan.branch,
+    user: plan.user ? serializeUser(plan.user) : undefined,
     sessions: sessions.map((session: any) => ({
       id: session.id,
       sessionNumber: session.sessionNumber,
@@ -91,6 +94,23 @@ const serializeTreatmentPlan = (plan: any) => {
     })),
   };
 };
+
+const serializeInvoice = (invoice: any) => ({
+  id: invoice.id,
+  code: invoice.code,
+  userId: invoice.userId,
+  bookingId: invoice.bookingId,
+  enrollmentId: invoice.enrollmentId,
+  title: invoice.title,
+  description: invoice.description ?? '',
+  amount: Number(invoice.amount),
+  discount: Number(invoice.discount),
+  finalAmount: Number(invoice.finalAmount),
+  paymentMethod: invoice.paymentMethod,
+  status: String(invoice.status).toLowerCase(),
+  paidAt: invoice.paidAt?.toISOString() ?? null,
+  createdAt: invoice.createdAt.toISOString(),
+});
 
 const serializeUser = (user: any) => ({
   id: user.id,
@@ -843,6 +863,48 @@ app.get('/api/treatment-plans', async (_req: Request, res: Response) => {
   }
 });
 
+app.post('/api/admin/treatment-plans', asyncRoute(async (req: Request, res: Response) => {
+  const { userId = 'usr_001', serviceId, branchId, name, totalSessions, expiresAt, imageUrl, notes } = req.body;
+  if (!serviceId || !branchId || !name?.trim() || !Number.isInteger(Number(totalSessions)) || Number(totalSessions) < 1 || !expiresAt) {
+    return res.status(400).json({ error: 'Thông tin liệu trình chưa đầy đủ hoặc không hợp lệ' });
+  }
+  const plan = await prisma.treatmentPlan.create({
+    data: { userId, serviceId, branchId, name: name.trim(), totalSessions: Number(totalSessions), expiresAt: new Date(expiresAt), imageUrl: imageUrl || null, notes: notes || null },
+    include: { user: true, service: true, branch: true, sessions: true },
+  });
+  await prisma.notification.create({ data: { userId, type: 'treatment', entityId: plan.id, title: 'Đã thêm liệu trình mới', message: `${plan.name} gồm ${plan.totalSessions} buổi.` } });
+  res.status(201).json({ treatmentPlan: serializeTreatmentPlan(plan) });
+}));
+
+app.patch('/api/admin/treatment-plans/:id', asyncRoute(async (req: Request, res: Response) => {
+  const { name, totalSessions, expiresAt, status, imageUrl, notes, branchId, serviceId } = req.body;
+  const plan = await prisma.treatmentPlan.update({
+    where: { id: req.params.id },
+    data: {
+      ...(name?.trim() ? { name: name.trim() } : {}),
+      ...(totalSessions !== undefined ? { totalSessions: Number(totalSessions) } : {}),
+      ...(expiresAt ? { expiresAt: new Date(expiresAt) } : {}),
+      ...(status ? { status: String(status).toUpperCase() as any } : {}),
+      ...(imageUrl !== undefined ? { imageUrl: imageUrl || null } : {}),
+      ...(notes !== undefined ? { notes: notes || null } : {}),
+      ...(branchId ? { branchId } : {}),
+      ...(serviceId ? { serviceId } : {}),
+    },
+    include: { user: true, service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } },
+  });
+  res.json({ treatmentPlan: serializeTreatmentPlan(plan) });
+}));
+
+app.post('/api/admin/treatment-plans/:id/sessions', asyncRoute(async (req: Request, res: Response) => {
+  const plan = await prisma.treatmentPlan.findUnique({ where: { id: req.params.id }, include: { sessions: true } });
+  if (!plan) return res.status(404).json({ error: 'Không tìm thấy liệu trình' });
+  const sessionNumber = Number(req.body.sessionNumber || Math.max(0, ...plan.sessions.map((item) => item.sessionNumber)) + 1);
+  if (sessionNumber > plan.totalSessions) return res.status(400).json({ error: 'Số buổi vượt quá tổng số buổi của liệu trình' });
+  await prisma.treatmentSession.create({ data: { planId: plan.id, sessionNumber, title: req.body.title?.trim() || `Buổi ${sessionNumber}`, scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : null, specialistName: req.body.specialistName || null, notes: req.body.notes || null } });
+  const updated = await prisma.treatmentPlan.findUniqueOrThrow({ where: { id: plan.id }, include: { user: true, service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } } });
+  res.status(201).json({ treatmentPlan: serializeTreatmentPlan(updated) });
+}));
+
 app.patch('/api/admin/treatment-sessions/:id/complete', async (req: Request, res: Response) => {
   try {
     const session = await prisma.treatmentSession.update({
@@ -859,6 +921,24 @@ app.patch('/api/admin/treatment-sessions/:id/complete', async (req: Request, res
     res.status(404).json({ error: 'Không tìm thấy buổi liệu trình' });
   }
 });
+
+app.patch('/api/admin/treatment-sessions/:id', asyncRoute(async (req: Request, res: Response) => {
+  const { title, status, scheduledAt, specialistName, notes } = req.body;
+  const session = await prisma.treatmentSession.update({
+    where: { id: req.params.id },
+    data: { ...(title ? { title } : {}), ...(status ? { status: String(status).toUpperCase() as any } : {}), ...(scheduledAt !== undefined ? { scheduledAt: scheduledAt ? new Date(scheduledAt) : null } : {}), ...(specialistName !== undefined ? { specialistName: specialistName || null } : {}), ...(notes !== undefined ? { notes: notes || null } : {}) },
+    include: { plan: { include: { user: true, service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } } } },
+  });
+  res.json({ treatmentPlan: serializeTreatmentPlan(session.plan) });
+}));
+
+app.get('/api/transactions', asyncRoute(async (_req: Request, res: Response) => {
+  const [invoices, pointTransactions] = await Promise.all([
+    prisma.invoice.findMany({ where: { userId: 'usr_001' }, orderBy: { createdAt: 'desc' } }),
+    prisma.pointTransaction.findMany({ where: { userId: 'usr_001' }, orderBy: { createdAt: 'desc' } }),
+  ]);
+  res.json({ invoices: invoices.map(serializeInvoice), pointTransactions, totalSpent: invoices.filter((item) => item.status === 'PAID').reduce((sum, item) => sum + Number(item.finalAmount), 0) });
+}));
 
 app.get('/api/notifications', async (_req: Request, res: Response) => {
   try {
@@ -966,36 +1046,50 @@ app.get('/api/admin/schedule', (req: Request, res: Response) => {
   });
 });
 
-app.get('/api/admin/receipts', (req: Request, res: Response) => {
-  res.json({
-    receipts: database.admin.posReceipts,
+app.get('/api/admin/receipts', asyncRoute(async (_req: Request, res: Response) => {
+  const invoices = await prisma.invoice.findMany({ include: { user: true }, orderBy: { createdAt: 'desc' } });
+  res.json({ receipts: invoices.map((item) => ({ ...serializeInvoice(item), customerName: item.user.name, customerPhone: item.user.phone })) });
+}));
+
+app.post('/api/admin/receipts', asyncRoute(async (req: Request, res: Response) => {
+  const { userId = 'usr_001', bookingId, enrollmentId, title, description, amount, discount = 0, paymentMethod = 'Tiền mặt', status = 'PAID' } = req.body;
+  const numericAmount = Number(amount);
+  const numericDiscount = Number(discount);
+  if (!title?.trim() || !Number.isFinite(numericAmount) || numericAmount < 0 || numericDiscount < 0 || numericDiscount > numericAmount) return res.status(400).json({ error: 'Thông tin hóa đơn không hợp lệ' });
+  const paid = String(status).toUpperCase() === 'PAID';
+  const invoice = await prisma.$transaction(async (tx) => {
+    const saved = await tx.invoice.create({ data: { code: `HD-${new Date().getFullYear()}-${Date.now().toString().slice(-7)}`, userId, bookingId: bookingId || null, enrollmentId: enrollmentId || null, title: title.trim(), description: description || null, amount: numericAmount, discount: numericDiscount, finalAmount: numericAmount - numericDiscount, paymentMethod, status: String(status).toUpperCase() as any, paidAt: paid ? new Date() : null } });
+    if (paid) {
+      const earnedPoints = Math.floor((numericAmount - numericDiscount) / 10000);
+      if (earnedPoints > 0) {
+        await tx.user.update({ where: { id: userId }, data: { points: { increment: earnedPoints } } });
+        await tx.pointTransaction.create({ data: { userId, description: `Thanh toán ${title.trim()}`, points: earnedPoints, entityType: 'invoice', entityId: saved.id } });
+      }
+      await tx.notification.create({ data: { userId, type: 'payment', entityId: saved.id, title: 'Thanh toán thành công', message: `Hóa đơn ${saved.code} đã thanh toán ${(numericAmount - numericDiscount).toLocaleString('vi-VN')} đ.` } });
+    }
+    return saved;
   });
-});
+  res.status(201).json({ message: 'Đã ghi nhận hóa đơn', receipt: serializeInvoice(invoice) });
+}));
 
-app.post('/api/admin/receipts', (req: Request, res: Response) => {
-  const { customerName, serviceTitle, techName, amount, discount = 0, paymentMethod = 'Tiền mặt' } = req.body;
-  const newReceipt = {
-    receiptCode: `HD-2026-${Math.floor(100 + Math.random() * 900)}`,
-    customerName: customerName || 'Khách Vãng Lai',
-    serviceTitle: serviceTitle || 'Massage thư giãn toàn thân',
-    techName: techName || 'Trần Minh Phương',
-    room: 'Phòng 01 - Quận 3',
-    amount: Number(amount) || 450000,
-    discount: Number(discount) || 0,
-    finalAmount: Math.max(0, (Number(amount) || 450000) - (Number(discount) || 0)),
-    paymentMethod,
-    status: 'Đã thanh toán',
-    time: new Date().toLocaleString('vi-VN'),
-  };
+app.post('/api/admin/specialists', asyncRoute(async (req: Request, res: Response) => {
+  const { branchId, name, title, specialty, workplace, bio, avatarUrl, experienceYears = 0, consultationFee = 0, serviceIds = [] } = req.body;
+  if (!branchId || !name?.trim() || !title?.trim() || !specialty?.trim()) return res.status(400).json({ error: 'Vui lòng nhập đủ thông tin chuyên viên' });
+  const specialist = await prisma.specialist.create({ data: { branchId, name: name.trim(), title: title.trim(), specialty: specialty.trim(), workplace: workplace || null, bio: bio || null, avatarUrl: avatarUrl || null, experienceYears: Number(experienceYears), consultationFee: Number(consultationFee), services: { create: serviceIds.map((serviceId: string) => ({ serviceId })) } }, include: { branch: true, services: true, schedules: true } });
+  res.status(201).json({ specialist: serializeSpecialist(specialist) });
+}));
 
-  database.admin.posReceipts.unshift(newReceipt);
-  database.admin.kpis.todayRevenue += newReceipt.finalAmount;
-
-  res.status(201).json({
-    message: 'Tạo phiếu thu thành công!',
-    receipt: newReceipt,
+app.patch('/api/admin/specialists/:id', asyncRoute(async (req: Request, res: Response) => {
+  const { serviceIds, ...fields } = req.body;
+  const specialist = await prisma.$transaction(async (tx) => {
+    if (Array.isArray(serviceIds)) {
+      await tx.specialistService.deleteMany({ where: { specialistId: req.params.id } });
+      await tx.specialistService.createMany({ data: serviceIds.map((serviceId: string) => ({ specialistId: req.params.id, serviceId })), skipDuplicates: true });
+    }
+    return tx.specialist.update({ where: { id: req.params.id }, data: { ...(fields.branchId ? { branchId: fields.branchId } : {}), ...(fields.name ? { name: fields.name } : {}), ...(fields.title ? { title: fields.title } : {}), ...(fields.specialty ? { specialty: fields.specialty } : {}), ...(fields.workplace !== undefined ? { workplace: fields.workplace || null } : {}), ...(fields.bio !== undefined ? { bio: fields.bio || null } : {}), ...(fields.avatarUrl !== undefined ? { avatarUrl: fields.avatarUrl || null } : {}), ...(fields.experienceYears !== undefined ? { experienceYears: Number(fields.experienceYears) } : {}), ...(fields.consultationFee !== undefined ? { consultationFee: Number(fields.consultationFee) } : {}), ...(fields.isActive !== undefined ? { isActive: Boolean(fields.isActive) } : {}) }, include: { branch: true, services: true, schedules: true } });
   });
-});
+  res.json({ specialist: serializeSpecialist(specialist) });
+}));
 
 app.get('/api/admin/students', (req: Request, res: Response) => {
   res.json({
@@ -1005,7 +1099,7 @@ app.get('/api/admin/students', (req: Request, res: Response) => {
 
 app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
   try {
-    const [branches, users, services, specialists, bookings, courses, enrollments, notifications, treatmentPlans] = await Promise.all([
+    const [branches, users, services, specialists, bookings, courses, enrollments, notifications, treatmentPlans, invoices, pointTransactions] = await Promise.all([
       prisma.branch.findMany({ include: { services: { include: { service: true } }, staff: true }, orderBy: { createdAt: 'asc' } }),
       prisma.user.findMany({ include: { bookings: true, enrollments: true }, orderBy: { createdAt: 'desc' } }),
       prisma.service.findMany({ include: { branches: true, specialists: true }, orderBy: { createdAt: 'asc' } }),
@@ -1015,6 +1109,8 @@ app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
       prisma.courseEnrollment.findMany({ include: { course: true, user: true }, orderBy: { createdAt: 'desc' } }),
       prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
       prisma.treatmentPlan.findMany({ include: { user: true, service: true, branch: true, sessions: { orderBy: { sessionNumber: 'asc' } } }, orderBy: { purchasedAt: 'desc' } }),
+      prisma.invoice.findMany({ include: { user: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.pointTransaction.findMany({ orderBy: { createdAt: 'desc' } }),
     ]);
     res.json({
       generatedAt: new Date().toISOString(),
@@ -1027,6 +1123,8 @@ app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
       enrollments: enrollments.map(serializeEnrollment),
       notifications,
       treatmentPlans: treatmentPlans.map(serializeTreatmentPlan),
+      invoices: invoices.map((invoice) => ({ ...serializeInvoice(invoice), customerName: invoice.user.name, customerPhone: invoice.user.phone })),
+      pointTransactions,
     });
   } catch (error) {
     console.error('[API] GET /admin/bootstrap failed', error);

@@ -6,6 +6,7 @@ import { BranchesTab } from './components/BranchesTab';
 import { CustomersTab } from './components/CustomersTab';
 import { StaffScheduleTab } from './components/StaffScheduleTab';
 import { TreatmentsTab } from './components/TreatmentsTab';
+import { SpecialistsTab } from './components/SpecialistsTab';
 import { CashierTab } from './components/CashierTab';
 import { AdmissionsTab } from './components/AdmissionsTab';
 import { InstructorsTab } from './components/InstructorsTab';
@@ -56,6 +57,7 @@ export const App: React.FC = () => {
       case 'users': return 'Quản trị / Người dùng & phân quyền';
       case 'customers':
         return 'Quản trị / Khách hàng';
+      case 'specialists': return 'Quản trị / Đội ngũ chuyên viên';
       case 'staff_schedule':
         return 'Quản trị / Lịch kỹ thuật viên';
       case 'treatments':
@@ -93,6 +95,8 @@ export const App: React.FC = () => {
         return <UsersTab users={users} onAddUser={(item) => setUsers((current) => [...current, { ...item, id: `user-${Date.now()}`, createdAt: new Date().toISOString() }])} onToggleStatus={(id) => setUsers((current) => current.map((item) => item.id === id ? { ...item, status: item.status === 'active' ? 'suspended' : 'active' } : item))} onChangeRole={(id, role: UserRole) => setUsers((current) => current.map((item) => item.id === id ? { ...item, role } : item))} onDeleteUser={(id) => setUsers((current) => current.filter((item) => item.id !== id))} />;
       case 'customers':
         return <CustomersTab />;
+      case 'specialists':
+        return <SpecialistsTab />;
       case 'staff_schedule':
         return <StaffScheduleTab onNavigateTab={setCurrentTab} />;
       case 'treatments':

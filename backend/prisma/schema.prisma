@@ -52,6 +52,13 @@ enum TreatmentSessionStatus {
   CANCELLED
 }
 
+enum InvoiceStatus {
+  PENDING
+  PAID
+  REFUNDED
+  CANCELLED
+}
+
 model User {
   id        String    @id @default(cuid())
   zaloId    String?   @unique
@@ -77,6 +84,8 @@ model User {
   notifications Notification[]
   vouchers UserVoucher[]
   treatmentPlans TreatmentPlan[]
+  invoices       Invoice[]
+  pointTransactions PointTransaction[]
 }
 
 model Voucher {
@@ -155,6 +164,8 @@ model TreatmentPlan {
   serviceId     String
   branchId      String
   name          String
+  imageUrl      String?
+  notes         String?
   totalSessions Int
   status        TreatmentPlanStatus @default(ACTIVE)
   purchasedAt   DateTime            @default(now())
@@ -167,6 +178,40 @@ model TreatmentPlan {
   sessions      TreatmentSession[]
 
   @@index([userId, status])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  userId        String
+  bookingId     String?       @unique
+  enrollmentId  String?       @unique
+  title         String
+  description   String?
+  amount        Decimal       @db.Decimal(12, 0)
+  discount      Decimal       @default(0) @db.Decimal(12, 0)
+  finalAmount   Decimal       @db.Decimal(12, 0)
+  paymentMethod String
+  status        InvoiceStatus @default(PENDING)
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model PointTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  description String
+  points      Int
+  entityType  String?
+  entityId    String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model TreatmentSession {

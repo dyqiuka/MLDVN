@@ -11,10 +11,12 @@ type AdminData = {
   enrollments: any[];
   notifications: any[];
   treatmentPlans: any[];
+  invoices: any[];
+  pointTransactions: any[];
   generatedAt?: string;
 };
 
-const emptyData: AdminData = { branches: [], users: [], services: [], specialists: [], bookings: [], courses: [], enrollments: [], notifications: [], treatmentPlans: [] };
+const emptyData: AdminData = { branches: [], users: [], services: [], specialists: [], bookings: [], courses: [], enrollments: [], notifications: [], treatmentPlans: [], invoices: [], pointTransactions: [] };
 const AdminDataContext = createContext({ data: emptyData, loading: true, error: '', refresh: async () => {} });
 
 export const AdminDataProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -23,7 +25,7 @@ export const AdminDataProvider: React.FC<React.PropsWithChildren> = ({ children 
   const [error, setError] = useState('');
   const refresh = async () => {
     setLoading(true);
-    try { setData(await getAdminBootstrap()); setError(''); }
+    try { setData({ ...emptyData, ...(await getAdminBootstrap()) }); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể tải dữ liệu'); }
     finally { setLoading(false); }
   };

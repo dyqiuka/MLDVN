@@ -80,6 +80,13 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
     avatar: user.avatar,
   });
   const [savingProfile, setSavingProfile] = useState(false);
+  const [transactions, setTransactions] = useState<{ invoices: any[]; pointTransactions: any[]; totalSpent: number }>({ invoices: [], pointTransactions: [], totalSpent: 0 });
+
+  useEffect(() => {
+    apiClient.getTransactions().then((result) => {
+      if (result?.invoices) setTransactions(result);
+    });
+  }, []);
 
   const selectAvatarFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -936,22 +943,18 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
             {pointsTab === 'history' && (
               <div className="space-y-2.5">
                 <h4 className="text-xs font-bold text-[#40352F]">Lịch sử giao dịch điểm:</h4>
-                {[
-                  { desc: 'Hoàn thành buổi Massage thư giãn', date: '08/10/2026', pts: '+150 điểm', type: 'plus' },
-                  { desc: 'Đăng ký khóa học đào tạo nghề MLD', date: '02/10/2026', pts: '+300 điểm', type: 'plus' },
-                  { desc: 'Đổi voucher giảm giá 50.000 ₫', date: '25/09/2026', pts: '-300 điểm', type: 'minus' },
-                  { desc: 'Điểm thưởng sinh nhật thành viên', date: '15/08/2026', pts: '+500 điểm', type: 'plus' },
-                ].map((h, idx) => (
-                  <div key={idx} className="p-3 bg-white rounded-xl border border-[#EADECF] flex justify-between items-center text-xs">
+                {transactions.pointTransactions.map((h) => (
+                  <div key={h.id} className="p-3 bg-white rounded-xl border border-[#EADECF] flex justify-between items-center text-xs">
                     <div>
-                      <p className="font-bold text-[#40352F]">{h.desc}</p>
-                      <p className="text-[10px] text-[#7A685D] mt-0.5">{h.date}</p>
+                      <p className="font-bold text-[#40352F]">{h.description}</p>
+                      <p className="text-[10px] text-[#7A685D] mt-0.5">{new Date(h.createdAt).toLocaleDateString('vi-VN')}</p>
                     </div>
-                    <span className={`font-black ${h.type === 'plus' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {h.pts}
+                    <span className={`font-black ${h.points >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {h.points >= 0 ? '+' : ''}{h.points.toLocaleString('vi-VN')} điểm
                     </span>
                   </div>
                 ))}
+                {!transactions.pointTransactions.length && <p className="py-8 text-center text-xs text-[#7A685D]">Chưa có giao dịch điểm.</p>}
               </div>
             )}
           </div>
@@ -1082,45 +1085,15 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
             {/* Total Expense Card */}
             <div className="bg-white p-5 rounded-3xl border border-[#EADECF] shadow-xs text-center space-y-1">
               <span className="text-[11px] font-semibold text-[#7A685D]">Tổng chi tiêu tích lũy</span>
-              <div className="text-2xl font-black text-[#98501B]">8.550.000 ₫</div>
-              <p className="text-[11px] text-[#A09085]">3 giao dịch hoàn tất · Hóa đơn VAT điện tử hợp lệ</p>
+              <div className="text-2xl font-black text-[#98501B]">{transactions.totalSpent.toLocaleString('vi-VN')} ₫</div>
+              <p className="text-[11px] text-[#A09085]">{transactions.invoices.filter((item) => item.status === 'paid').length} giao dịch hoàn tất</p>
             </div>
 
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-[#40352F]">Hóa đơn chi tiết các buổi trị liệu:</h4>
-              {[
-                {
-                  id: 'INV-2026-1008',
-                  service: 'Massage Thư Giãn Toàn Thân (60 phút)',
-                  branch: 'Chi nhánh 01 — Quận 3',
-                  date: '08/10/2026 10:00',
-                  method: 'VietQR / Chuyển khoản',
-                  price: '450.000 ₫',
-                  vat: '36.000 ₫',
-                  status: 'Đã thanh toán',
-                },
-                {
-                  id: 'INV-2026-1002',
-                  service: 'Đặt cọc khóa học Kỹ thuật viên Spa MLD',
-                  branch: 'Học viện MLD Quận 3',
-                  date: '02/10/2026 14:30',
-                  method: 'ZaloPay',
-                  price: '2.000.000 ₫',
-                  vat: '0 ₫ (Học phí)',
-                  status: 'Đã thanh toán',
-                },
-                {
-                  id: 'INV-2026-0901',
-                  service: 'Gói Liệu Trình Chăm Sóc Sức Khỏe 10 Buổi',
-                  branch: 'Chi nhánh 01 — Quận 3',
-                  date: '01/09/2026 09:15',
-                  method: 'Thẻ tín dụng Visa/Master',
-                  price: '6.100.000 ₫',
-                  vat: '488.000 ₫',
-                  status: 'Đã thanh toán',
-                },
-              ].map((inv, idx) => (
-                <div key={idx} className="p-4 rounded-2xl border border-[#EADECF] bg-white shadow-xs space-y-2 text-xs">
+              {transactions.invoices.map((item) => {
+                const inv = { id: item.code, service: item.title, branch: item.description || 'MLD Vietnam', date: new Date(item.paidAt || item.createdAt).toLocaleString('vi-VN'), method: item.paymentMethod, price: `${item.finalAmount.toLocaleString('vi-VN')} ₫`, vat: 'Theo quy định hóa đơn', status: item.status === 'paid' ? 'Đã thanh toán' : item.status };
+                return <div key={item.id} className="p-4 rounded-2xl border border-[#EADECF] bg-white shadow-xs space-y-2 text-xs">
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="font-mono text-[10px] text-stone-400 font-bold block">{inv.id}</span>
@@ -1156,8 +1129,9 @@ export const GroupFProfile: React.FC<GroupFProfileProps> = ({
                       </button>
                     </div>
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
+              {!transactions.invoices.length && <p className="py-8 text-center text-xs text-[#7A685D]">Chưa có hóa đơn.</p>}
             </div>
           </div>
         </div>
