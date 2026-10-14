@@ -12,6 +12,9 @@ import {
   BookOpen,
   BarChart3,
   HelpCircle,
+  ClipboardList,
+  BriefcaseMedical,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,10 +25,12 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => {
   const spaOperations = [
     { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard },
+    { id: 'appointments', label: 'Lịch hẹn', icon: ClipboardList },
     { id: 'branches', label: 'Chi nhánh', icon: Building2 },
     { id: 'customers', label: 'Khách hàng', icon: Users },
     { id: 'staff_schedule', label: 'Lịch kỹ thuật viên', icon: Calendar },
     { id: 'treatments', label: 'Liệu trình', icon: Sparkles },
+    { id: 'services', label: 'Dịch vụ', icon: BriefcaseMedical },
     { id: 'cashier', label: 'Thu ngân', icon: CreditCard },
   ];
 
@@ -34,9 +39,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
     { id: 'instructors', label: 'Giảng viên', icon: Monitor },
     { id: 'students', label: 'Học viên', icon: GraduationCap },
     { id: 'training_ops', label: 'Vận hành đào tạo', icon: BookOpen },
+    { id: 'courses', label: 'Khóa học', icon: BookOpen },
   ];
 
   const analysisSections = [
+    { id: 'users', label: 'Người dùng & phân quyền', icon: ShieldCheck },
     { id: 'revenue_report', label: 'Báo cáo doanh thu', icon: BarChart3 },
   ];
 

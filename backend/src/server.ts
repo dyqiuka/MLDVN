@@ -807,6 +807,35 @@ app.get('/api/admin/students', (req: Request, res: Response) => {
   });
 });
 
+app.get('/api/admin/bootstrap', async (_req: Request, res: Response) => {
+  try {
+    const [branches, users, services, specialists, bookings, courses, enrollments, notifications] = await Promise.all([
+      prisma.branch.findMany({ include: { services: { include: { service: true } }, staff: true }, orderBy: { createdAt: 'asc' } }),
+      prisma.user.findMany({ include: { bookings: true, enrollments: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.service.findMany({ include: { branches: true, specialists: true }, orderBy: { createdAt: 'asc' } }),
+      prisma.specialist.findMany({ include: { branch: true, services: true, schedules: true }, orderBy: { name: 'asc' } }),
+      prisma.booking.findMany({ include: bookingInclude, orderBy: { scheduledAt: 'desc' } }),
+      prisma.course.findMany({ include: { enrollments: true }, orderBy: { createdAt: 'asc' } }),
+      prisma.courseEnrollment.findMany({ include: { course: true, user: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+    ]);
+    res.json({
+      generatedAt: new Date().toISOString(),
+      branches: branches.map((branch) => ({ ...branch, services: branch.services.map((item) => item.service) })),
+      users: users.map((user) => ({ ...user, avatar: user.avatarUrl || '' })),
+      services: services.map((service) => ({ ...service, price: Number(service.price), originalPrice: service.originalPrice ? Number(service.originalPrice) : null, rating: Number(service.rating) })),
+      specialists: specialists.map((specialist) => ({ ...specialist, rating: Number(specialist.rating), consultationFee: Number(specialist.consultationFee) })),
+      bookings: bookings.map(serializeBooking),
+      courses: courses.map((course) => ({ ...course, price: Number(course.price), deposit: Number(course.deposit) })),
+      enrollments: enrollments.map(serializeEnrollment),
+      notifications,
+    });
+  } catch (error) {
+    console.error('[API] GET /admin/bootstrap failed', error);
+    res.status(500).json({ error: 'Không thể tải dữ liệu quản trị' });
+  }
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`🚀 [BACKEND] MLD Vietnam Healthcare & Academy Server running at http://localhost:${PORT}`);
